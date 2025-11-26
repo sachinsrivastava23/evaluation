@@ -7,7 +7,6 @@ import re
 import ast
 
 import streamlit as st
-from dotenv import load_dotenv
 from pypdf import PdfReader
 from bs4 import BeautifulSoup 
 
@@ -25,12 +24,12 @@ from langchain_google_genai import (
 #                  INITIAL SETUP
 # ------------------------------------------------------
 
-load_dotenv()
 model = ChatGoogleGenerativeAI(model="gemini-2.5-pro")
 
-# Load Google Search API Keys
-GOOGLE_SEARCH_API_KEY = os.getenv("GOOGLE_SEARCH_API_KEY")
-GOOGLE_SEARCH_CX = os.getenv("GOOGLE_SEARCH_CX")
+# Load secrets from Streamlit Cloud
+GOOGLE_SEARCH_API_KEY = st.secrets["GOOGLE_SEARCH_API_KEY"]
+GOOGLE_SEARCH_CX = st.secrets["GOOGLE_SEARCH_CX"]
+GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 
 # ------------------------------------------------------
 #            GOOGLE SEARCH API FUNCTION
@@ -38,7 +37,7 @@ GOOGLE_SEARCH_CX = os.getenv("GOOGLE_SEARCH_CX")
 
 def google_search(query, num_results=5):
     if not GOOGLE_SEARCH_API_KEY or not GOOGLE_SEARCH_CX:
-        raise ValueError("API key or CX missing. Check your .env file.")
+        raise ValueError("Missing API key or CX in Streamlit Secrets.")
 
     url = "https://www.googleapis.com/customsearch/v1"
     params = {
@@ -83,7 +82,7 @@ class UniqueChunkSelector:
 
 embeddings = GoogleGenerativeAIEmbeddings(
     model="models/text-embedding-004",
-    google_api_key=os.getenv("GOOGLE_API_KEY"),
+    google_api_key=GOOGLE_API_KEY,
     transport="rest"
 )
 
@@ -323,7 +322,6 @@ if question_mode == "PYQ":
                     all_text = ""
                     headers = {"User-Agent": "Mozilla/5.0"}
 
-                    # DOWNLOAD PDFs & EXTRACT TEXT
                     files_found = 0
 
                     for link in urls:
@@ -349,7 +347,7 @@ if question_mode == "PYQ":
                             pass
 
                     if not all_text.strip():
-                        st.error("Found files but couldn't extract text. (Probably scanned PDFs)")
+                        st.error("Found files but couldn't extract text.")
                         st.stop()
 
                     extraction_prompt = f"""
@@ -371,8 +369,7 @@ if question_mode == "PYQ":
                     """
 
                     response = model.invoke(extraction_prompt)
-                    clean_text = re.sub(r"```[a-zA-Z]*", "", response.content) \
-                                   .replace("```", "").strip()
+                    clean_text = re.sub(r"```[a-zA-Z]*", "", response.content).replace("```", "").strip()
 
                     try:
                         question_array = ast.literal_eval(clean_text)
@@ -457,6 +454,7 @@ if question_mode == "PYQ":
                 st.session_state.user_answer = ""
                 st.session_state.evaluation = None
                 st.session_state.related_chunks = ""
+                st.session_state.pyq_index += 1
                 st.rerun()
 
         else:
