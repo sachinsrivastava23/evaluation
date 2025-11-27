@@ -8,7 +8,7 @@ import ast
 
 import streamlit as st
 from pypdf import PdfReader
-from bs4 import BeautifulSoup 
+from bs4 import BeautifulSoup  # still here if you want later
 
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -20,112 +20,89 @@ from langchain_google_genai import (
 )
 
 # ------------------------------------------------------
-#   UI CONFIGURATION & CSS (THE NUCLEAR FIX)
+#   PAGE CONFIG & NEON CSS (VISUALS ONLY)
 # ------------------------------------------------------
+st.set_page_config(page_title="Neon Exam AI", layout="wide", page_icon="⚡")
 
-st.set_page_config(page_title="Zen Study Companion", page_icon="🧘", layout="centered")
+st.markdown("""
+<style>
+    /* Main Background */
+    .stApp {
+        background-color: #050505;
+        color: #e0e0e0;
+    }
+    
+    /* Neon Title */
+    h1 {
+        color: #fff;
+        text-shadow: 0 0 10px #00FFFF, 0 0 20px #00FFFF, 0 0 40px #00FFFF;
+        font-family: 'Courier New', monospace;
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    
+    h2, h3 {
+        color: #00FFFF;
+        font-family: 'Courier New', sans-serif;
+    }
 
-def inject_custom_css():
-    st.markdown("""
-    <style>
-        /* IMPORT FONTS */
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&family=Merriweather:wght@300;700&display=swap');
+    /* Input Fields (Text Area, Inputs) */
+    .stTextInput > div > div > input, .stTextArea > div > div > textarea {
+        background-color: #111;
+        color: #00FFFF;
+        border: 1px solid #333;
+        border-radius: 5px;
+    }
+    .stTextInput > div > div > input:focus, .stTextArea > div > div > textarea:focus {
+        border-color: #00FFFF;
+        box-shadow: 0 0 10px #00FFFF;
+    }
 
-        /* --- 1. THE NUCLEAR TEXT FIX --- */
-        /* This forces ALL text in the app to be dark gray, overriding Dark Mode white text */
-        
-        .stApp, .stApp > header {
-            background-color: #dfe6e9 !important; /* Force background color */
-        }
+    /* Buttons */
+    .stButton > button {
+        background-color: transparent;
+        color: #00FFFF;
+        border: 2px solid #00FFFF;
+        border-radius: 5px;
+        transition: all 0.3s ease;
+        font-weight: bold;
+        width: 100%;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+    }
+    .stButton > button:hover {
+        background-color: #00FFFF;
+        color: #000;
+        box-shadow: 0 0 20px #00FFFF;
+    }
 
-        /* Target every possible text element to force it Dark */
-        h1, h2, h3, h4, h5, h6, p, span, div, label, li, a {
-            color: #2d3436 !important;
-        }
-
-        /* --- 2. EXCEPTIONS (Revert text to white for specific dark buttons) --- */
-        
-        /* The "Browse Files" button inside File Uploader */
-        button[data-testid="baseButton-secondary"] {
-            color: #2d3436 !important; /* Keep dark text on light button */
-            border-color: #2d3436 !important;
-        }
-
-        /* The Main Action Buttons (Purple) - Text must be white */
-        .stButton > button {
-            background-color: #6c5ce7 !important;
-            border: none !important;
-        }
-        .stButton > button p {
-            color: #ffffff !important; /* Force text white on purple button */
-        }
-        
-        /* --- 3. COMPONENT VISIBILITY FIXES --- */
-        
-        /* Fix the Radio Buttons (The bubbles themselves) */
-        div[role="radiogroup"] label div[data-testid="stMarkdownContainer"] p {
-            color: #2d3436 !important;
-        }
-
-        /* Fix the File Uploader "Drag and drop" text */
-        section[data-testid="stFileUploaderDropzone"] div, 
-        section[data-testid="stFileUploaderDropzone"] span, 
-        section[data-testid="stFileUploaderDropzone"] small {
-            color: #2d3436 !important;
-        }
-
-        /* --- 4. CARD STYLING --- */
-        .css-card {
-            background-color: #FFFFFF !important;
-            padding: 2.5rem;
-            border-radius: 15px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-            margin-bottom: 2rem;
-            border-top: 6px solid #6c5ce7;
-        }
-
-        /* --- 5. INPUT FIELDS --- */
-        /* Force input backgrounds to be light so dark text is visible */
-        .stTextInput input, .stTextArea textarea, .stSelectbox div[data-baseweb="select"] {
-            background-color: #f1f2f6 !important;
-            color: #2d3436 !important;
-            border: 1px solid #ced6e0 !important;
-        }
-        
-        /* --- 6. COLORED BOXES --- */
-        .question-box {
-            background-color: #fff200 !important;
-            padding: 1.5rem;
-            border-radius: 10px;
-            margin: 1.5rem 0;
-            border-left: 5px solid #ffa502;
-        }
-        .question-box div, .question-box p {
-             color: #2d3436 !important;
-        }
-
-        .eval-box {
-            background-color: #55efc4 !important;
-            padding: 1.5rem;
-            border-radius: 10px;
-            margin-top: 1.5rem;
-            border-left: 5px solid #00b894;
-        }
-        .eval-box div, .eval-box h3 {
-             color: #006266 !important;
-        }
-
-        /* HIDE DEFAULT HEADER */
-        header {visibility: hidden;}
-        footer {visibility: hidden;}
-
-    </style>
-    """, unsafe_allow_html=True)
-
-inject_custom_css()
+    /* Selectbox & Radio */
+    .stSelectbox > div > div {
+        background-color: #111;
+        color: white;
+    }
+    
+    /* Cards/Containers */
+    div[data-testid="stVerticalBlock"] > div {
+        background-color: #0a0a0a;
+        border: 1px solid #222;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+    }
+    
+    /* Success/Info Messages */
+    .stSuccess, .stInfo {
+        background-color: #111 !important;
+        color: #00FFFF !important;
+        border-left: 5px solid #00FFFF !important;
+    }
+    
+</style>
+""", unsafe_allow_html=True)
 
 # ------------------------------------------------------
-#   SIMPLE VECTOR STORE
+#   SIMPLE VECTOR STORE (RAM ONLY, NO EXTERNAL DB)
 # ------------------------------------------------------
 
 class SimpleVectorStore:
@@ -148,6 +125,7 @@ class SimpleVectorStore:
         scored = []
 
         for t, v in zip(self.texts, self.vectors):
+            # cosine-like score by dot product (good enough for now)
             score = sum(a * b for a, b in zip(qemb, v))
             scored.append((score, t))
 
@@ -156,7 +134,7 @@ class SimpleVectorStore:
         return [Document(page_content=t) for (_, t) in top]
 
 # ------------------------------------------------------
-#                   INITIAL SETUP
+#                  INITIAL SETUP
 # ------------------------------------------------------
 
 GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
@@ -181,7 +159,7 @@ if "chunks" not in st.session_state:
     st.session_state.chunks = []
 
 # ------------------------------------------------------
-#             GOOGLE SEARCH API FUNCTION
+#           GOOGLE SEARCH API FUNCTION
 # ------------------------------------------------------
 
 def google_search(query, num_results=5):
@@ -202,7 +180,7 @@ def google_search(query, num_results=5):
         return {}
 
 # ------------------------------------------------------
-#          UNIQUE CHUNK SELECTOR CLASS
+#         UNIQUE CHUNK SELECTOR CLASS
 # ------------------------------------------------------
 
 class UniqueChunkSelector:
@@ -223,7 +201,7 @@ class UniqueChunkSelector:
         return self.chunk[selected_index]
 
 # ------------------------------------------------------
-#               DOCUMENT CHUNKING
+#              DOCUMENT CHUNKING
 # ------------------------------------------------------
 
 def chunk_documents(docs):
@@ -245,7 +223,7 @@ def to_document(chunks):
     return [Document(page_content=c["page_content"]) for c in chunks]
 
 # ------------------------------------------------------
-#          PDF TEXT AUTO-DETECTOR (NO OCR)
+#         PDF TEXT AUTO-DETECTOR (NO OCR)
 # ------------------------------------------------------
 
 def load_pdf_auto(file_path: str):
@@ -268,25 +246,21 @@ def load_pdf_auto(file_path: str):
 #                    STREAMLIT UI
 # ------------------------------------------------------
 
-# Title Area
-st.markdown("""
-<div style="text-align: center; margin-bottom: 2rem;">
-    <h1 style="color:#2d3436 !important;">🧘 Zen Study Companion</h1>
-    <p style="color: #636e72 !important; font-size: 1.1rem;">Focus. Learn. Repeat.</p>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("<h1>⚡ AI EXAM ASSISTANT ⚡</h1>", unsafe_allow_html=True)
 
-# Container for Upload
-st.markdown('<div class="css-card">', unsafe_allow_html=True)
-st.markdown("### 📂 Step 1: Upload Material")
-uploaded_file = st.file_uploader("Upload PDF", type="pdf", label_visibility="collapsed")
+with st.container():
+    st.write("### 📂 Upload Material")
+    uploaded_file = st.file_uploader("Upload your material", type="pdf")
 
-if uploaded_file:
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        tmp.write(uploaded_file.read())
-        tmp_path = tmp.name
+    if uploaded_file:
 
-    with st.spinner("Processing your study material... 🍃"):
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp.write(uploaded_file.read())
+            tmp_path = tmp.name
+
+        st.success("The file is uploaded successfully!")
+        st.write("Processing… please wait ⏳")
+
         docs = load_pdf_auto(tmp_path)
         chunks = chunk_documents(docs)
         chunk_docs = to_document(chunks)
@@ -298,31 +272,25 @@ if uploaded_file:
         st.session_state.vector_store = vs
         st.session_state.chunks = chunks
 
-    st.success("✨ Material ready! Embeddings stored in memory.")
-st.markdown('</div>', unsafe_allow_html=True)
+        st.success("Embeddings generated and stored in memory for this session!")
 
 # ------------------------------------------------------
 #                QUESTION GENERATION UI
 # ------------------------------------------------------
-
-st.markdown('<div class="css-card">', unsafe_allow_html=True)
-st.markdown("### 🎯 Step 2: Choose Mode")
+st.divider()
+st.subheader("🎯 Choose Question Type")
 
 question_mode = st.radio(
     "Select How You Want To Get Questions",
-    ("Generated From the Notes", "PYQ"),
-    label_visibility="collapsed",
-    horizontal=True
+    ("Generated From the Notes", "PYQ")
 )
-st.markdown('</div>', unsafe_allow_html=True)
 
 # ------------------------------------------------------
-#            MODE 1: GENERATED FROM NOTES
+#              MODE 1: GENERATED FROM NOTES
 # ------------------------------------------------------
 
 if question_mode == "Generated From the Notes":
-    
-    # Logic variables (unchanged)
+
     if "generated_question" not in st.session_state:
         st.session_state.generated_question = None
 
@@ -335,14 +303,11 @@ if question_mode == "Generated From the Notes":
     if "evaluation" not in st.session_state:
         st.session_state.evaluation = None
 
-    # UI Wrapper
-    st.markdown('<div class="css-card">', unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1,2,1])
-    with col2:
-        if st.button("✨ Generate New Question"):
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        if st.button("✨ Generate Questions"):
             if not st.session_state.chunks:
-                st.warning("⚠️ Please upload a PDF first.")
+                st.warning("Please upload a PDF first.")
             else:
                 selector = UniqueChunkSelector(st.session_state.chunks)
                 chunk_obj = selector.get_next_unique_chunk()
@@ -357,69 +322,52 @@ if question_mode == "Generated From the Notes":
                 {chunk_text}
                 """
 
-                with st.spinner("Thinking of a question..."):
-                    output = model.invoke(prompt)
-                    st.session_state.generated_question = output.content
+                output = model.invoke(prompt)
+                st.session_state.generated_question = output.content
 
                 st.session_state.user_ans = ""
                 st.session_state.evaluation = None
 
     if st.session_state.generated_question:
-        st.markdown(f"""
-        <div class="question-box">
-            <div style="font-size:0.9rem; color:#d35400 !important; margin-bottom:5px;">QUESTION</div>
-            <div style="color:#2d3436 !important;">{st.session_state.generated_question}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        with st.container():
+            st.write("## ❓ Question:")
+            st.info(st.session_state.generated_question)
 
-        st.markdown("**Your Answer:**")
-        st.session_state.user_ans = st.text_area(
-            "TYPE THE ANSWER...",
-            value=st.session_state.user_ans,
-            height=150,
-            label_visibility="collapsed",
-            placeholder="Type your understanding here..."
-        )
+            st.session_state.user_ans = st.text_area(
+                "TYPE THE ANSWER...",
+                value=st.session_state.user_ans,
+                height=150
+            )
 
-        if st.button("📝 Submit Answer"):
-            evaluation_prompt = f"""
-            Evaluate this answer strictly based on the material:
+            if st.button("🚀 Submit"):
+                evaluation_prompt = f"""
+                Evaluate this answer strictly based on the material:
 
-            Question: {st.session_state.generated_question}
-            User Answer: {st.session_state.user_ans}
-            Study Material: {st.session_state.current_chunk}
+                Question: {st.session_state.generated_question}
+                User Answer: {st.session_state.user_ans}
+                Study Material: {st.session_state.current_chunk}
 
-            Provide:
-            - Correctness (0-10)
-            - What is correct
-            - What is missing
-            - Correct answer
-            """
-            
-            with st.spinner("Grading..."):
+                Provide:
+                - Correctness (0-10)
+                - What is correct
+                - What is missing
+                - Correct answer
+                """
+
                 evaluation = model.invoke(evaluation_prompt)
                 st.session_state.evaluation = evaluation.content
 
     if st.session_state.evaluation:
-        st.markdown(f"""
-        <div class="eval-box">
-            <h3 style="color:#006266 !important;">📊 Evaluation Results</h3>
-            <div style="color:#006266 !important;">{st.session_state.evaluation.replace(chr(10), '<br>')}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+        st.write("## 📊 Evaluation:")
+        st.markdown(f"<div style='border:1px solid #00FFFF; padding:10px; border-radius:5px;'>{st.session_state.evaluation}</div>", unsafe_allow_html=True)
 
 # ------------------------------------------------------
-#                    MODE 2: PYQ (ABESIT)
+#                       MODE 2: PYQ (ABESIT)
 # ------------------------------------------------------
 
 if question_mode == "PYQ":
-    
-    st.markdown('<div class="css-card">', unsafe_allow_html=True)
-    st.markdown("### 🏦 Question Bank Search")
 
-    # State Setup (unchanged)
+    # State Setup
     if "pyq_list" not in st.session_state:
         st.session_state.pyq_list = []
 
@@ -438,221 +386,204 @@ if question_mode == "PYQ":
     if "pyq_evaluation" not in st.session_state:
         st.session_state.pyq_evaluation = None
 
+    st.info("🎯 Focus: PYQ Question Bank")
+
     # Inputs
-    col1, col2 = st.columns(2)
+    with st.container():
+        col1, col2 = st.columns(2)
 
-    with col1:
-        course = st.selectbox(
-            "Select Course",
-            ["B.Tech", "MCA", "B.Pharm", "BBA", "BCA", "MBA"],
-            key="pyq_course"
-        )
-        year = st.text_input("Year (Optional)", placeholder="e.g. 2022", key="pyq_year")
+        with col1:
+            course = st.selectbox(
+                "Select Course",
+                ["B.Tech", "MCA", "B.Pharm", "BBA", "BCA", "MBA"],
+                key="pyq_course"
+            )
+            year = st.text_input("Year (Optional)", placeholder="e.g. 2022", key="pyq_year")
 
-    with col2:
-        subject = st.text_input(
-            "Subject Name or Code",
-            placeholder="e.g. KCS301 or Data Structures",
-            key="pyq_sub"
-        )
-        st.caption("Tip: Subject Codes (like KCS-301) work best.")
+        with col2:
+            subject = st.text_input(
+                "Subject Name or Code",
+                placeholder="e.g. KCS301 or Data Structures",
+                key="pyq_sub"
+            )
+            st.caption("Tip: Subject Codes (like KCS-301) work best.")
 
-    # Search Button
-    if st.button("🔍 Find Questions"):
+        # Search Button
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔍 Search"):
 
-        if not subject:
-            st.error("Please enter a Subject Name or Code.")
-        else:
-            with st.spinner(f"Scanning ABESIT Library for {course} {subject}..."):
+            if not subject:
+                st.error("Please enter a Subject Name or Code.")
+            else:
+                with st.spinner(f"Scanning for {course} {subject}..."):
 
-                search_query = (
-                    f'site:abesit.in "{course}" "{subject}" {year} filetype:pdf'
-                )
-
-                try:
-                    google_json = google_search(search_query, num_results=5)
-
-                    urls = []
-                    for item in google_json.get("items", []):
-                        if "link" in item:
-                            urls.append(item["link"])
-
-                    if not urls:
-                        st.warning(f"No PDFs found on ABESIT for '{subject}'.")
-                        st.info("Try searching by the Subject Code (e.g., 'KCS-301').")
-                        st.stop()
-
-                    all_text = ""
-                    headers = {"User-Agent": "Mozilla/5.0"}
-
-                    files_found = 0
-
-                    for link in urls:
-                        try:
-                            if link.lower().endswith(".pdf"):
-                                r = requests.get(link, headers=headers, timeout=8)
-
-                                with open("temp_pyq.pdf", "wb") as f:
-                                    f.write(r.content)
-
-                                reader = PdfReader("temp_pyq.pdf")
-                                file_text = ""
-
-                                for page in reader.pages:
-                                    t = page.extract_text()
-                                    if t:
-                                        file_text += t + "\n"
-
-                                if file_text.strip():
-                                    all_text += f"\n--- SOURCE: {link} ---\n" + file_text
-                                    files_found += 1
-                        except:
-                            pass
-
-                    if not all_text.strip():
-                        st.error("Found files but couldn't extract text.")
-                        st.stop()
-
-                    extraction_prompt = f"""
-                    You are extracting questions from the ABESIT Library Question Bank.
-
-                    Target Subject: {subject}
-                    Target Course: {course}
-
-                    Task:
-                    1. Read the text below.
-                    2. Extract ONLY the exam questions.
-                    3. Do NOT generate fake questions.
-                    4. If unrelated, return [].
-
-                    Output: Python list of strings: ["Question 1", "Question 2", ...]
-
-                    Text:
-                    {all_text[:30000]}
-                    """
-
-                    response = model.invoke(extraction_prompt)
-                    clean_text = re.sub(
-                        r"```[a-zA-Z]*", "", response.content
-                    ).replace("```", "").strip()
+                    search_query = (
+                        f'site:abesit.in "{course}" "{subject}" {year} filetype:pdf'
+                    )
 
                     try:
-                        question_array = ast.literal_eval(clean_text)
-                    except:
-                        try:
-                            question_array = json.loads(clean_text)
-                        except:
-                            st.error("Error parsing extracted questions.")
+                        google_json = google_search(search_query, num_results=5)
+
+                        urls = []
+                        for item in google_json.get("items", []):
+                            if "link" in item:
+                                urls.append(item["link"])
+
+                        if not urls:
+                            st.warning(f"No PDFs found on ABESIT for '{subject}'.")
+                            st.info("Try searching by the Subject Code (e.g., 'KCS-301').")
                             st.stop()
 
-                    if isinstance(question_array, list) and len(question_array) > 0:
-                        st.session_state.pyq_list = question_array
-                        st.session_state.pyq_index = 0
-                        st.success(f"Found {len(question_array)} questions from {files_found} ABESIT paper(s).")
-                        st.rerun()
-                    else:
-                        st.warning("No clear questions found.")
+                        all_text = ""
+                        headers = {"User-Agent": "Mozilla/5.0"}
 
-                except Exception as e:
-                    st.error(f"Error: {e}")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+                        files_found = 0
+
+                        for link in urls:
+                            try:
+                                if link.lower().endswith(".pdf"):
+                                    r = requests.get(link, headers=headers, timeout=8)
+
+                                    with open("temp_pyq.pdf", "wb") as f:
+                                        f.write(r.content)
+
+                                    reader = PdfReader("temp_pyq.pdf")
+                                    file_text = ""
+
+                                    for page in reader.pages:
+                                        t = page.extract_text()
+                                        if t:
+                                            file_text += t + "\n"
+
+                                    if file_text.strip():
+                                        all_text += f"\n--- SOURCE: {link} ---\n" + file_text
+                                        files_found += 1
+                            except:
+                                pass
+
+                        if not all_text.strip():
+                            st.error("Found files but couldn't extract text.")
+                            st.stop()
+
+                        extraction_prompt = f"""
+                        You are extracting questions from the ABESIT Library Question Bank.
+
+                        Target Subject: {subject}
+                        Target Course: {course}
+
+                        Task:
+                        1. Read the text below.
+                        2. Extract ONLY the exam questions.
+                        3. Do NOT generate fake questions.
+                        4. If unrelated, return [].
+
+                        Output: Python list of strings: ["Question 1", "Question 2", ...]
+
+                        Text:
+                        {all_text[:30000]}
+                        """
+
+                        response = model.invoke(extraction_prompt)
+                        clean_text = re.sub(
+                            r"```[a-zA-Z]*", "", response.content
+                        ).replace("```", "").strip()
+
+                        try:
+                            question_array = ast.literal_eval(clean_text)
+                        except:
+                            try:
+                                question_array = json.loads(clean_text)
+                            except:
+                                st.error("Error parsing extracted questions.")
+                                st.stop()
+
+                        if isinstance(question_array, list) and len(question_array) > 0:
+                            st.session_state.pyq_list = question_array
+                            st.session_state.pyq_index = 0
+                            st.success(f"Found {len(question_array)} questions from {files_found} ABESIT paper(s).")
+                            st.rerun()
+                        else:
+                            st.warning("No clear questions found.")
+
+                    except Exception as e:
+                        st.error(f"Error: {e}")
 
     # Display Questions
     if st.session_state.pyq_list:
-        
-        st.markdown('<div class="css-card">', unsafe_allow_html=True)
-        
+
+        st.divider()
         idx = st.session_state.pyq_index
         total = len(st.session_state.pyq_list)
 
         if idx < total:
-            st.markdown(f"#### Question {idx + 1} of {total}")
             
-            st.session_state.current_question = st.session_state.pyq_list[idx]
-            
-            st.markdown(f"""
-            <div class="question-box">
-                <div style="font-size:0.9rem; color:#d35400 !important; margin-bottom:5px;">QUESTION</div>
-                <div style="color:#2d3436 !important;">{st.session_state.current_question}</div>
-            </div>
-            """, unsafe_allow_html=True)
+            with st.container():
+                st.info(f"## Question {idx + 1} of {total}")
+                st.write(st.session_state.pyq_list[idx])
 
-            st.session_state.user_answer = st.text_area(
-                "Your Answer:",
-                value=st.session_state.user_answer,
-                height=150,
-                placeholder="Write your answer here..."
-            )
+                st.session_state.current_question = st.session_state.pyq_list[idx]
 
-            col_a, col_b = st.columns(2)
-            
-            # Evaluate Answer
-            with col_a:
-                if st.button("📝 Evaluate Answer"):
+                st.session_state.user_answer = st.text_area(
+                    "Your Answer:",
+                    value=st.session_state.user_answer,
+                    height=150
+                )
 
-                    if not st.session_state.user_answer:
-                        st.warning("Please write an answer first.")
-                    elif st.session_state.vector_store is None:
-                        st.error("Upload your notes PDF first so I can use them for evaluation.")
-                    else:
-                        with st.spinner("Retrieving notes & grading..."):
+                # Evaluate Answer
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    if st.button("⚖️ Evaluate Answer"):
 
-                            retrieved_chunks = st.session_state.vector_store.similarity_search(
-                                st.session_state.current_question, k=3
-                            )
+                        if not st.session_state.user_answer:
+                            st.warning("Please write an answer first.")
+                        elif st.session_state.vector_store is None:
+                            st.error("Upload your notes PDF first so I can use them for evaluation.")
+                        else:
+                            with st.spinner("Retrieving notes & grading..."):
 
-                            context_chunk = "\n\n".join(
-                                [doc.page_content for doc in retrieved_chunks]
-                            )
+                                retrieved_chunks = st.session_state.vector_store.similarity_search(
+                                    st.session_state.current_question, k=3
+                                )
 
-                            st.session_state.related_chunks = context_chunk
+                                context_chunk = "\n\n".join(
+                                    [doc.page_content for doc in retrieved_chunks]
+                                )
 
-                            eval_prompt = f"""
-                            Evaluate this answer strictly based on the material.
-                            If the material is not enough, then only add missing info yourself.
+                                st.session_state.related_chunks = context_chunk
 
-                            Question: {st.session_state.current_question}
-                            User Answer: {st.session_state.user_answer}
-                            Study Material: {st.session_state.related_chunks}
+                                eval_prompt = f"""
+                                Evaluate this answer strictly based on the material.
+                                If the material is not enough, then only add missing info yourself.
 
-                            Provide:
-                            - Correctness (0-10)
-                            - What is correct
-                            - What is missing
-                            - Correct answer
-                            """
+                                Question: {st.session_state.current_question}
+                                User Answer: {st.session_state.user_answer}
+                                Study Material: {st.session_state.related_chunks}
 
-                            response = model.invoke(eval_prompt)
-                            st.session_state.pyq_evaluation = response.content
+                                Provide:
+                                - Correctness (0-10)
+                                - What is correct
+                                - What is missing
+                                - Correct answer
+                                """
 
-            # NEXT QUESTION
-            with col_b:
-                if st.button("➡️ Next Question"):
-                    st.session_state.user_answer = ""
-                    st.session_state.pyq_evaluation = None
-                    st.session_state.related_chunks = ""
-                    st.session_state.pyq_index += 1
-                    st.rerun()
-            
+                                response = model.invoke(eval_prompt)
+                                st.session_state.pyq_evaluation = response.content
+
+                with col_b:
+                    # NEXT QUESTION
+                    if st.button("➡️ NEXT QUESTION"):
+                        st.session_state.user_answer = ""
+                        st.session_state.pyq_evaluation = None
+                        st.session_state.related_chunks = ""
+                        st.session_state.pyq_index += 1
+                        st.rerun()
+
             if st.session_state.pyq_evaluation:
-                st.markdown(f"""
-                <div class="eval-box">
-                    <h3 style="color:#006266 !important;">📊 Evaluation Results</h3>
-                    <div style="color:#006266 !important;">{st.session_state.pyq_evaluation.replace(chr(10), '<br>')}</div>
-                </div>
-                """, unsafe_allow_html=True)
+                st.write("## Evaluation:")
+                st.markdown(f"<div style='border:1px solid #00FFFF; padding:10px; border-radius:5px;'>{st.session_state.pyq_evaluation}</div>", unsafe_allow_html=True)
 
         else:
-            st.markdown("""
-            <div style="text-align:center; padding: 2rem;">
-                <h3>🎉 Excellent work!</h3>
-                <p>You've completed all the questions in this set.</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            if st.button("🔄 Start Over"):
+            st.warning("That was the last question!")
+            if st.button("Restart"):
                 st.session_state.pyq_index = 0
                 st.rerun()
-        
-        st.markdown('</div>', unsafe_allow_html=True)
