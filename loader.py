@@ -21,7 +21,7 @@ from langchain_google_genai import (
 st.set_page_config(
     page_title="EduMind AI",
     page_icon="📘",   # Book icon
-    layout="wide"
+    # layout="wide"
 )
 
 
