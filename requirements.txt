@@ -1,10 +1,10 @@
 streamlit
-python-dotenv
 pypdf
+requests
 langchain
 langchain-community
 langchain-core
 langchain-google-genai
-chromadb
-requests
+qdrant-client
+google-auth
 beautifulsoup4
