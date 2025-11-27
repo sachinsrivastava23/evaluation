@@ -20,54 +20,85 @@ from langchain_google_genai import (
 )
 
 # ------------------------------------------------------
-#   PAGE CONFIGURATION & CUSTOM CSS (VISUALS ONLY)
+#   PAGE CONFIG & NEON CSS (VISUALS ONLY)
 # ------------------------------------------------------
-st.set_page_config(
-    page_title="Exam Prep AI",
-    page_icon="🎓",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="Neon Exam AI", layout="wide", page_icon="⚡")
 
-# Custom CSS to make it look beautiful
 st.markdown("""
-    <style>
+<style>
+    /* Main Background */
     .stApp {
-        background-color: #f9f9f9;
+        background-color: #050505;
+        color: #e0e0e0;
     }
-    .main-header {
-        font-size: 2.5rem;
-        color: #4F8BF9;
+    
+    /* Neon Title */
+    h1 {
+        color: #fff;
+        text-shadow: 0 0 10px #00FFFF, 0 0 20px #00FFFF, 0 0 40px #00FFFF;
+        font-family: 'Courier New', monospace;
         text-align: center;
-        margin-bottom: 1rem;
+        margin-bottom: 30px;
     }
-    .sub-header {
-        font-size: 1.5rem;
-        color: #333;
-        margin-top: 2rem;
-        margin-bottom: 1rem;
-        border-bottom: 2px solid #4F8BF9;
-        padding-bottom: 0.5rem;
+    
+    h2, h3 {
+        color: #00FFFF;
+        font-family: 'Courier New', sans-serif;
     }
-    .stButton>button {
-        background-color: #4F8BF9;
-        color: white;
-        border-radius: 10px;
+
+    /* Input Fields (Text Area, Inputs) */
+    .stTextInput > div > div > input, .stTextArea > div > div > textarea {
+        background-color: #111;
+        color: #00FFFF;
+        border: 1px solid #333;
+        border-radius: 5px;
+    }
+    .stTextInput > div > div > input:focus, .stTextArea > div > div > textarea:focus {
+        border-color: #00FFFF;
+        box-shadow: 0 0 10px #00FFFF;
+    }
+
+    /* Buttons */
+    .stButton > button {
+        background-color: transparent;
+        color: #00FFFF;
+        border: 2px solid #00FFFF;
+        border-radius: 5px;
+        transition: all 0.3s ease;
+        font-weight: bold;
         width: 100%;
-        border: none;
-        padding: 0.5rem 1rem;
+        text-transform: uppercase;
+        letter-spacing: 2px;
     }
-    .stButton>button:hover {
-        background-color: #3b6ccf;
+    .stButton > button:hover {
+        background-color: #00FFFF;
+        color: #000;
+        box-shadow: 0 0 20px #00FFFF;
+    }
+
+    /* Selectbox & Radio */
+    .stSelectbox > div > div {
+        background-color: #111;
         color: white;
     }
+    
+    /* Cards/Containers */
     div[data-testid="stVerticalBlock"] > div {
-        background-color: white;
-        padding: 1rem;
+        background-color: #0a0a0a;
+        border: 1px solid #222;
+        padding: 20px;
         border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.5);
     }
-    </style>
+    
+    /* Success/Info Messages */
+    .stSuccess, .stInfo {
+        background-color: #111 !important;
+        color: #00FFFF !important;
+        border-left: 5px solid #00FFFF !important;
+    }
+    
+</style>
 """, unsafe_allow_html=True)
 
 # ------------------------------------------------------
@@ -105,14 +136,6 @@ class SimpleVectorStore:
 # ------------------------------------------------------
 #                  INITIAL SETUP
 # ------------------------------------------------------
-
-# Sidebar for API Status or Info (Optional visual touch)
-with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3426/3426653.png", width=100)
-    st.title("Settings")
-    st.info("System is ready. API Keys loaded.")
-    st.divider()
-    st.caption("Powered by Gemini 2.5 Pro")
 
 GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 GOOGLE_SEARCH_API_KEY = st.secrets["GOOGLE_SEARCH_API_KEY"]
@@ -223,50 +246,44 @@ def load_pdf_auto(file_path: str):
 #                    STREAMLIT UI
 # ------------------------------------------------------
 
-st.markdown('<h1 class="main-header">🎓 AI Exam Assistant</h1>', unsafe_allow_html=True)
+st.markdown("<h1>⚡ AI EXAM ASSISTANT ⚡</h1>", unsafe_allow_html=True)
 
-# Using a container for the upload section for a "card" look
-with st.container(border=True):
-    st.markdown("### 📂 Step 1: Upload Material")
-    uploaded_file = st.file_uploader("Upload your material", type="pdf", help="Upload a readable PDF file")
+with st.container():
+    st.write("### 📂 Upload Material")
+    uploaded_file = st.file_uploader("Upload your material", type="pdf")
 
     if uploaded_file:
+
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
             tmp.write(uploaded_file.read())
             tmp_path = tmp.name
 
-        with st.status("Processing Document...", expanded=True) as status:
-            st.write("Reading PDF... 📄")
-            docs = load_pdf_auto(tmp_path)
-            st.write("Chunking content... 🧩")
-            chunks = chunk_documents(docs)
-            chunk_docs = to_document(chunks)
+        st.success("The file is uploaded successfully!")
+        st.write("Processing… please wait ⏳")
 
-            # create simple RAM vector store
-            st.write("Generating Embeddings... 🧠")
-            vs = SimpleVectorStore(embeddings)
-            vs.add_documents(chunk_docs)
+        docs = load_pdf_auto(tmp_path)
+        chunks = chunk_documents(docs)
+        chunk_docs = to_document(chunks)
 
-            st.session_state.vector_store = vs
-            st.session_state.chunks = chunks
-            status.update(label="Document Processed Successfully!", state="complete", expanded=False)
+        # create simple RAM vector store
+        vs = SimpleVectorStore(embeddings)
+        vs.add_documents(chunk_docs)
 
-        st.success("✅ Embeddings generated and stored in memory for this session!")
+        st.session_state.vector_store = vs
+        st.session_state.chunks = chunks
+
+        st.success("Embeddings generated and stored in memory for this session!")
 
 # ------------------------------------------------------
 #                QUESTION GENERATION UI
 # ------------------------------------------------------
+st.divider()
+st.subheader("🎯 Choose Question Type")
 
-st.markdown('<div class="sub-header">🎯 Choose Your Mode</div>', unsafe_allow_html=True)
-
-# Using horizontal radio for better look
 question_mode = st.radio(
     "Select How You Want To Get Questions",
-    ("Generated From the Notes", "PYQ"),
-    horizontal=True
+    ("Generated From the Notes", "PYQ")
 )
-
-st.markdown("---") # Visual divider
 
 # ------------------------------------------------------
 #              MODE 1: GENERATED FROM NOTES
@@ -286,66 +303,63 @@ if question_mode == "Generated From the Notes":
     if "evaluation" not in st.session_state:
         st.session_state.evaluation = None
 
-    col_btn, col_rest = st.columns([1, 2])
-    with col_btn:
-        if st.button("✨ Generate New Question"):
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        if st.button("✨ Generate Questions"):
             if not st.session_state.chunks:
-                st.warning("⚠️ Please upload a PDF first.")
+                st.warning("Please upload a PDF first.")
             else:
-                with st.spinner("AI is thinking..."):
-                    selector = UniqueChunkSelector(st.session_state.chunks)
-                    chunk_obj = selector.get_next_unique_chunk()
-                    chunk_text = chunk_obj["page_content"]
-                    st.session_state.current_chunk = chunk_text
+                selector = UniqueChunkSelector(st.session_state.chunks)
+                chunk_obj = selector.get_next_unique_chunk()
+                chunk_text = chunk_obj["page_content"]
+                st.session_state.current_chunk = chunk_text
 
-                    prompt = f"""
-                    Generate 1 exam-oriented question strictly from this material.
-                    No extra topics. No MCQs. No references.
+                prompt = f"""
+                Generate 1 exam-oriented question strictly from this material.
+                No extra topics. No MCQs. No references.
 
-                    Study Material:
-                    {chunk_text}
-                    """
+                Study Material:
+                {chunk_text}
+                """
 
-                    output = model.invoke(prompt)
-                    st.session_state.generated_question = output.content
+                output = model.invoke(prompt)
+                st.session_state.generated_question = output.content
 
-                    st.session_state.user_ans = ""
-                    st.session_state.evaluation = None
+                st.session_state.user_ans = ""
+                st.session_state.evaluation = None
 
     if st.session_state.generated_question:
-        with st.container(border=True):
-            st.markdown("### ❓ Question:")
-            st.info(st.session_state.generated_question, icon="🧐")
+        with st.container():
+            st.write("## ❓ Question:")
+            st.info(st.session_state.generated_question)
 
             st.session_state.user_ans = st.text_area(
-                "✍️ TYPE THE ANSWER...",
+                "TYPE THE ANSWER...",
                 value=st.session_state.user_ans,
                 height=150
             )
 
-            if st.button("🚀 Submit Answer"):
-                with st.spinner("Grading..."):
-                    evaluation_prompt = f"""
-                    Evaluate this answer strictly based on the material:
+            if st.button("🚀 Submit"):
+                evaluation_prompt = f"""
+                Evaluate this answer strictly based on the material:
 
-                    Question: {st.session_state.generated_question}
-                    User Answer: {st.session_state.user_ans}
-                    Study Material: {st.session_state.current_chunk}
+                Question: {st.session_state.generated_question}
+                User Answer: {st.session_state.user_ans}
+                Study Material: {st.session_state.current_chunk}
 
-                    Provide:
-                    - Correctness (0-10)
-                    - What is correct
-                    - What is missing
-                    - Correct answer
-                    """
+                Provide:
+                - Correctness (0-10)
+                - What is correct
+                - What is missing
+                - Correct answer
+                """
 
-                    evaluation = model.invoke(evaluation_prompt)
-                    st.session_state.evaluation = evaluation.content
+                evaluation = model.invoke(evaluation_prompt)
+                st.session_state.evaluation = evaluation.content
 
     if st.session_state.evaluation:
-        st.markdown("### 📊 Evaluation Results")
-        with st.expander("View Detailed Feedback", expanded=True):
-            st.markdown(st.session_state.evaluation)
+        st.write("## 📊 Evaluation:")
+        st.markdown(f"<div style='border:1px solid #00FFFF; padding:10px; border-radius:5px;'>{st.session_state.evaluation}</div>", unsafe_allow_html=True)
 
 # ------------------------------------------------------
 #                       MODE 2: PYQ (ABESIT)
@@ -372,11 +386,10 @@ if question_mode == "PYQ":
     if "pyq_evaluation" not in st.session_state:
         st.session_state.pyq_evaluation = None
 
-    st.info("🎯 Focus: PYQ Question Bank - Sourced from ABESIT Library")
+    st.info("🎯 Focus: PYQ Question Bank")
 
-    with st.container(border=True):
-        st.markdown("#### 🔍 Search Parameters")
-        # Inputs
+    # Inputs
+    with st.container():
         col1, col2 = st.columns(2)
 
         with col1:
@@ -393,15 +406,16 @@ if question_mode == "PYQ":
                 placeholder="e.g. KCS301 or Data Structures",
                 key="pyq_sub"
             )
-            st.caption("💡 Tip: Subject Codes (like KCS-301) work best.")
+            st.caption("Tip: Subject Codes (like KCS-301) work best.")
 
         # Search Button
-        if st.button("🔍 Search Papers"):
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔍 Search"):
 
             if not subject:
                 st.error("Please enter a Subject Name or Code.")
             else:
-                with st.status(f"Scanning for {course} {subject}...", expanded=True):
+                with st.spinner(f"Scanning for {course} {subject}..."):
 
                     search_query = (
                         f'site:abesit.in "{course}" "{subject}" {year} filetype:pdf'
@@ -426,7 +440,6 @@ if question_mode == "PYQ":
                         files_found = 0
 
                         for link in urls:
-                            st.write(f"Reading: {link}...")
                             try:
                                 if link.lower().endswith(".pdf"):
                                     r = requests.get(link, headers=headers, timeout=8)
@@ -452,7 +465,6 @@ if question_mode == "PYQ":
                             st.error("Found files but couldn't extract text.")
                             st.stop()
 
-                        st.write("Extracting exam questions using AI...")
                         extraction_prompt = f"""
                         You are extracting questions from the ABESIT Library Question Bank.
 
@@ -505,9 +517,9 @@ if question_mode == "PYQ":
 
         if idx < total:
             
-            with st.container(border=True):
-                st.markdown(f"### 📝 Question {idx + 1} of {total}")
-                st.markdown(f"> **{st.session_state.pyq_list[idx]}**")
+            with st.container():
+                st.info(f"## Question {idx + 1} of {total}")
+                st.write(st.session_state.pyq_list[idx])
 
                 st.session_state.current_question = st.session_state.pyq_list[idx]
 
@@ -517,10 +529,9 @@ if question_mode == "PYQ":
                     height=150
                 )
 
-                col_eval, col_next = st.columns([1, 1])
-
-                with col_eval:
-                    # Evaluate Answer
+                # Evaluate Answer
+                col_a, col_b = st.columns(2)
+                with col_a:
                     if st.button("⚖️ Evaluate Answer"):
 
                         if not st.session_state.user_answer:
@@ -558,7 +569,7 @@ if question_mode == "PYQ":
                                 response = model.invoke(eval_prompt)
                                 st.session_state.pyq_evaluation = response.content
 
-                with col_next:
+                with col_b:
                     # NEXT QUESTION
                     if st.button("➡️ NEXT QUESTION"):
                         st.session_state.user_answer = ""
@@ -568,13 +579,11 @@ if question_mode == "PYQ":
                         st.rerun()
 
             if st.session_state.pyq_evaluation:
-                st.markdown("### 📊 Evaluation:")
-                with st.container(border=True):
-                    st.markdown(st.session_state.pyq_evaluation)
+                st.write("## Evaluation:")
+                st.markdown(f"<div style='border:1px solid #00FFFF; padding:10px; border-radius:5px;'>{st.session_state.pyq_evaluation}</div>", unsafe_allow_html=True)
 
         else:
-            st.balloons()
-            st.success("🎉 That was the last question!")
-            if st.button("🔄 Restart"):
+            st.warning("That was the last question!")
+            if st.button("Restart"):
                 st.session_state.pyq_index = 0
                 st.rerun()
