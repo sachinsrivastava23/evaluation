@@ -317,7 +317,7 @@ if question_mode == "PYQ":
             placeholder="e.g. KCS301 or Data Structures",
             key="pyq_sub"
         )
-        st.caption("Tip: Subject Codes (like KCS-301) work best on ABESIT.")
+        st.caption("Tip: Subject Codes (like KCS-301) work best.")
 
     # Search Button
     if st.button("Search"):
@@ -325,7 +325,7 @@ if question_mode == "PYQ":
         if not subject:
             st.error("Please enter a Subject Name or Code.")
         else:
-            with st.spinner(f"Scanning abesit.in for {course} {subject}..."):
+            with st.spinner(f"Scanning for {course} {subject}..."):
 
                 search_query = (
                     f'site:abesit.in "{course}" "{subject}" {year} filetype:pdf'
