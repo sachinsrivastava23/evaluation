@@ -5,7 +5,6 @@ import json
 import requests
 import re
 import ast
-import shutil
 
 import streamlit as st
 from pypdf import PdfReader
@@ -33,31 +32,6 @@ GOOGLE_SEARCH_CX = st.secrets["GOOGLE_SEARCH_CX"]
 GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 
 # ------------------------------------------------------
-#      EMBEDDING HEALTH CHECK (IMPORTANT)
-# ------------------------------------------------------
-
-def test_embeddings():
-    try:
-        test_emb = GoogleGenerativeAIEmbeddings(
-            model="models/text-embedding-004",
-            google_api_key=GOOGLE_API_KEY,
-        )
-        test_emb.embed_documents(["hello world"])
-        return True
-    except Exception as e:
-        st.error("❌ Embedding API Failure: " + str(e))
-        return False
-
-EMBEDDINGS_OK = test_embeddings()
-
-# ------------------------------------------------------
-#      ENSURE CLEAN VECTOR DB (AVOID OLD CORRUPT DATA)
-# ------------------------------------------------------
-
-if os.path.exists("chroma_db"):
-    shutil.rmtree("chroma_db", ignore_errors=True)
-
-# ------------------------------------------------------
 #            GOOGLE SEARCH API FUNCTION
 # ------------------------------------------------------
 
@@ -66,7 +40,12 @@ def google_search(query, num_results=5):
         raise ValueError("Missing API key or CX in Streamlit Secrets.")
 
     url = "https://www.googleapis.com/customsearch/v1"
-    params = {"key": GOOGLE_SEARCH_API_KEY, "cx": GOOGLE_SEARCH_CX, "q": query, "num": num_results}
+    params = {
+        "key": GOOGLE_SEARCH_API_KEY,
+        "cx": GOOGLE_SEARCH_CX,
+        "q": query,
+        "num": num_results
+    }
 
     try:
         response = requests.get(url, params=params)
@@ -104,6 +83,7 @@ class UniqueChunkSelector:
 embeddings = GoogleGenerativeAIEmbeddings(
     model="models/text-embedding-004",
     google_api_key=GOOGLE_API_KEY,
+    transport="rest"
 )
 
 # ------------------------------------------------------
@@ -121,27 +101,19 @@ vector_store = Chroma(
 
 def chunk_documents(docs):
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=600,
-        chunk_overlap=100,
+        chunk_size=1000,
+        chunk_overlap=200,
         length_function=len
     )
 
     final_chunk = []
-
     for d in docs:
-        text = d["page_content"]
-
-        # Clean hidden Unicode and spacing garbage
-        text = re.sub(r"\s+", " ", text)
-        text = text.encode("ascii", "ignore").decode()
-
-        chunks = text_splitter.split_text(text)
-
+        chunks = text_splitter.split_text(d["page_content"])
         for c in chunks:
-            if len(c.strip()) > 0:
-                final_chunk.append({"page_content": c})
+            final_chunk.append({"page_content": c})
 
     return final_chunk
+
 
 def to_document(chunks):
     return [Document(page_content=c["page_content"]) for c in chunks]
@@ -176,9 +148,6 @@ uploaded_file = st.file_uploader("Upload your material", type="pdf")
 
 if uploaded_file:
 
-    if not EMBEDDINGS_OK:
-        st.stop()
-
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         tmp.write(uploaded_file.read())
         tmp_path = tmp.name
@@ -212,6 +181,7 @@ question_mode = st.radio(
 
 if question_mode == "Generated From the Notes":
 
+    # Initialize states
     if "generated_question" not in st.session_state:
         st.session_state.generated_question = None
 
@@ -224,6 +194,7 @@ if question_mode == "Generated From the Notes":
     if "evaluation" not in st.session_state:
         st.session_state.evaluation = None
 
+    # Generate Question
     if st.button("Generate Questions"):
         selector = UniqueChunkSelector(chunk)
         chunk_text = selector.get_next_unique_chunk()
@@ -253,6 +224,7 @@ if question_mode == "Generated From the Notes":
             value=st.session_state.user_ans
         )
 
+        # Submit Answer
         if st.button("Submit"):
             evaluation_prompt = f"""
             Evaluate this answer strictly based on the material:
@@ -271,16 +243,18 @@ if question_mode == "Generated From the Notes":
             evaluation = model.invoke(evaluation_prompt)
             st.session_state.evaluation = evaluation.content
 
+    # Show Evaluation
     if st.session_state.evaluation:
         st.write("## Evaluation:")
         st.write(st.session_state.evaluation)
 
 # ------------------------------------------------------
-#               MODE 2: PYQ (ABESIT Exclusive)
+#                     MODE 2: PYQ (ABESIT Exclusive)
 # ------------------------------------------------------
 
 if question_mode == "PYQ":
 
+    # State Setup
     if "pyq_list" not in st.session_state:
         st.session_state.pyq_list = []
 
@@ -301,22 +275,26 @@ if question_mode == "PYQ":
 
     st.info("🎯 Focus: ABESIT Library Question Bank")
 
+    # Inputs
     col1, col2 = st.columns(2)
 
     with col1:
         course = st.selectbox(
-            "Select Course",
+            "Select Course", 
             ["B.Tech", "MCA", "B.Pharm", "BBA", "BCA", "MBA"],
+            key="pyq_course"
         )
-        year = st.text_input("Year (Optional)", placeholder="e.g. 2022")
+        year = st.text_input("Year (Optional)", placeholder="e.g. 2022", key="pyq_year")
 
     with col2:
         subject = st.text_input(
             "Subject Name or Code",
-            placeholder="e.g. KCS301 or Data Structures"
+            placeholder="e.g. KCS301 or Data Structures",
+            key="pyq_sub"
         )
         st.caption("Tip: Subject Codes (like KCS-301) work best on ABESIT.")
 
+    # Search Button
     if st.button("Search ABESIT Library"):
 
         if not subject:
@@ -324,7 +302,9 @@ if question_mode == "PYQ":
         else:
             with st.spinner(f"Scanning abesit.in for {course} {subject}..."):
 
-                search_query = f'site:abesit.in "{course}" "{subject}" {year} filetype:pdf'
+                search_query = (
+                    f'site:abesit.in "{course}" "{subject}" {year} filetype:pdf'
+                )
 
                 try:
                     google_json = google_search(search_query, num_results=5)
@@ -335,11 +315,13 @@ if question_mode == "PYQ":
                             urls.append(item["link"])
 
                     if not urls:
-                        st.warning(f"No PDFs found for '{subject}'.")
+                        st.warning(f"No PDFs found on ABESIT for '{subject}'.")
+                        st.info("Try searching by the Subject Code (e.g., 'KCS-301').")
                         st.stop()
 
                     all_text = ""
                     headers = {"User-Agent": "Mozilla/5.0"}
+
                     files_found = 0
 
                     for link in urls:
@@ -376,7 +358,7 @@ if question_mode == "PYQ":
 
                     Task:
                     1. Read the text below.
-                    2. Extract ONLY exam questions.
+                    2. Extract ONLY the exam questions.
                     3. Do NOT generate fake questions.
                     4. If unrelated, return [].
 
@@ -401,7 +383,7 @@ if question_mode == "PYQ":
                     if isinstance(question_array, list) and len(question_array) > 0:
                         st.session_state.pyq_list = question_array
                         st.session_state.pyq_index = 0
-                        st.success(f"Found {len(question_array)} questions from {files_found} ABESIT papers.")
+                        st.success(f"Found {len(question_array)} questions from {files_found} ABESIT paper(s).")
                         st.rerun()
                     else:
                         st.warning("No clear questions found.")
@@ -448,7 +430,7 @@ if question_mode == "PYQ":
 
                         eval_prompt = f"""
                         Evaluate this answer strictly based on the material.
-                        If the material is not enough, add missing info yourself.
+                        If the material is not enough, then only add missing info yourself.
 
                         Question: {st.session_state.current_question}
                         User Answer: {st.session_state.user_answer}
@@ -467,6 +449,7 @@ if question_mode == "PYQ":
             if st.session_state.evaluation:
                 st.write(st.session_state.evaluation)
 
+            # NEXT QUESTION
             if st.button("NEXT QUESTION"):
                 st.session_state.user_answer = ""
                 st.session_state.evaluation = None
