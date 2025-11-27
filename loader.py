@@ -20,6 +20,57 @@ from langchain_google_genai import (
 )
 
 # ------------------------------------------------------
+#   PAGE CONFIGURATION & CUSTOM CSS (VISUALS ONLY)
+# ------------------------------------------------------
+st.set_page_config(
+    page_title="Exam Prep AI",
+    page_icon="🎓",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Custom CSS to make it look beautiful
+st.markdown("""
+    <style>
+    .stApp {
+        background-color: #f9f9f9;
+    }
+    .main-header {
+        font-size: 2.5rem;
+        color: #4F8BF9;
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+    .sub-header {
+        font-size: 1.5rem;
+        color: #333;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+        border-bottom: 2px solid #4F8BF9;
+        padding-bottom: 0.5rem;
+    }
+    .stButton>button {
+        background-color: #4F8BF9;
+        color: white;
+        border-radius: 10px;
+        width: 100%;
+        border: none;
+        padding: 0.5rem 1rem;
+    }
+    .stButton>button:hover {
+        background-color: #3b6ccf;
+        color: white;
+    }
+    div[data-testid="stVerticalBlock"] > div {
+        background-color: white;
+        padding: 1rem;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# ------------------------------------------------------
 #   SIMPLE VECTOR STORE (RAM ONLY, NO EXTERNAL DB)
 # ------------------------------------------------------
 
@@ -55,6 +106,14 @@ class SimpleVectorStore:
 #                  INITIAL SETUP
 # ------------------------------------------------------
 
+# Sidebar for API Status or Info (Optional visual touch)
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/3426/3426653.png", width=100)
+    st.title("Settings")
+    st.info("System is ready. API Keys loaded.")
+    st.divider()
+    st.caption("Powered by Gemini 2.5 Pro")
+
 GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 GOOGLE_SEARCH_API_KEY = st.secrets["GOOGLE_SEARCH_API_KEY"]
 GOOGLE_SEARCH_CX = st.secrets["GOOGLE_SEARCH_CX"]
@@ -77,7 +136,7 @@ if "chunks" not in st.session_state:
     st.session_state.chunks = []
 
 # ------------------------------------------------------
-#            GOOGLE SEARCH API FUNCTION
+#           GOOGLE SEARCH API FUNCTION
 # ------------------------------------------------------
 
 def google_search(query, num_results=5):
@@ -98,7 +157,7 @@ def google_search(query, num_results=5):
         return {}
 
 # ------------------------------------------------------
-#          UNIQUE CHUNK SELECTOR CLASS
+#         UNIQUE CHUNK SELECTOR CLASS
 # ------------------------------------------------------
 
 class UniqueChunkSelector:
@@ -141,7 +200,7 @@ def to_document(chunks):
     return [Document(page_content=c["page_content"]) for c in chunks]
 
 # ------------------------------------------------------
-#          PDF TEXT AUTO-DETECTOR (NO OCR)
+#         PDF TEXT AUTO-DETECTOR (NO OCR)
 # ------------------------------------------------------
 
 def load_pdf_auto(file_path: str):
@@ -164,45 +223,53 @@ def load_pdf_auto(file_path: str):
 #                    STREAMLIT UI
 # ------------------------------------------------------
 
-st.title("Upload the PDF file")
+st.markdown('<h1 class="main-header">🎓 AI Exam Assistant</h1>', unsafe_allow_html=True)
 
-uploaded_file = st.file_uploader("Upload your material", type="pdf")
+# Using a container for the upload section for a "card" look
+with st.container(border=True):
+    st.markdown("### 📂 Step 1: Upload Material")
+    uploaded_file = st.file_uploader("Upload your material", type="pdf", help="Upload a readable PDF file")
 
-if uploaded_file:
+    if uploaded_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp.write(uploaded_file.read())
+            tmp_path = tmp.name
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        tmp.write(uploaded_file.read())
-        tmp_path = tmp.name
+        with st.status("Processing Document...", expanded=True) as status:
+            st.write("Reading PDF... 📄")
+            docs = load_pdf_auto(tmp_path)
+            st.write("Chunking content... 🧩")
+            chunks = chunk_documents(docs)
+            chunk_docs = to_document(chunks)
 
-    st.success("The file is uploaded successfully!")
-    st.write("Processing… please wait ⏳")
+            # create simple RAM vector store
+            st.write("Generating Embeddings... 🧠")
+            vs = SimpleVectorStore(embeddings)
+            vs.add_documents(chunk_docs)
 
-    docs = load_pdf_auto(tmp_path)
-    chunks = chunk_documents(docs)
-    chunk_docs = to_document(chunks)
+            st.session_state.vector_store = vs
+            st.session_state.chunks = chunks
+            status.update(label="Document Processed Successfully!", state="complete", expanded=False)
 
-    # create simple RAM vector store
-    vs = SimpleVectorStore(embeddings)
-    vs.add_documents(chunk_docs)
-
-    st.session_state.vector_store = vs
-    st.session_state.chunks = chunks
-
-    st.success("Embeddings generated and stored in memory for this session!")
+        st.success("✅ Embeddings generated and stored in memory for this session!")
 
 # ------------------------------------------------------
 #                QUESTION GENERATION UI
 # ------------------------------------------------------
 
-st.subheader("Choose Question Type")
+st.markdown('<div class="sub-header">🎯 Choose Your Mode</div>', unsafe_allow_html=True)
 
+# Using horizontal radio for better look
 question_mode = st.radio(
     "Select How You Want To Get Questions",
-    ("Generated From the Notes", "PYQ")
+    ("Generated From the Notes", "PYQ"),
+    horizontal=True
 )
 
+st.markdown("---") # Visual divider
+
 # ------------------------------------------------------
-#             MODE 1: GENERATED FROM NOTES
+#              MODE 1: GENERATED FROM NOTES
 # ------------------------------------------------------
 
 if question_mode == "Generated From the Notes":
@@ -219,62 +286,69 @@ if question_mode == "Generated From the Notes":
     if "evaluation" not in st.session_state:
         st.session_state.evaluation = None
 
-    if st.button("Generate Questions"):
-        if not st.session_state.chunks:
-            st.warning("Please upload a PDF first.")
-        else:
-            selector = UniqueChunkSelector(st.session_state.chunks)
-            chunk_obj = selector.get_next_unique_chunk()
-            chunk_text = chunk_obj["page_content"]
-            st.session_state.current_chunk = chunk_text
+    col_btn, col_rest = st.columns([1, 2])
+    with col_btn:
+        if st.button("✨ Generate New Question"):
+            if not st.session_state.chunks:
+                st.warning("⚠️ Please upload a PDF first.")
+            else:
+                with st.spinner("AI is thinking..."):
+                    selector = UniqueChunkSelector(st.session_state.chunks)
+                    chunk_obj = selector.get_next_unique_chunk()
+                    chunk_text = chunk_obj["page_content"]
+                    st.session_state.current_chunk = chunk_text
 
-            prompt = f"""
-            Generate 1 exam-oriented question strictly from this material.
-            No extra topics. No MCQs. No references.
+                    prompt = f"""
+                    Generate 1 exam-oriented question strictly from this material.
+                    No extra topics. No MCQs. No references.
 
-            Study Material:
-            {chunk_text}
-            """
+                    Study Material:
+                    {chunk_text}
+                    """
 
-            output = model.invoke(prompt)
-            st.session_state.generated_question = output.content
+                    output = model.invoke(prompt)
+                    st.session_state.generated_question = output.content
 
-            st.session_state.user_ans = ""
-            st.session_state.evaluation = None
+                    st.session_state.user_ans = ""
+                    st.session_state.evaluation = None
 
     if st.session_state.generated_question:
-        st.write("## Question:")
-        st.write(st.session_state.generated_question)
+        with st.container(border=True):
+            st.markdown("### ❓ Question:")
+            st.info(st.session_state.generated_question, icon="🧐")
 
-        st.session_state.user_ans = st.text_area(
-            "TYPE THE ANSWER...",
-            value=st.session_state.user_ans
-        )
+            st.session_state.user_ans = st.text_area(
+                "✍️ TYPE THE ANSWER...",
+                value=st.session_state.user_ans,
+                height=150
+            )
 
-        if st.button("Submit"):
-            evaluation_prompt = f"""
-            Evaluate this answer strictly based on the material:
+            if st.button("🚀 Submit Answer"):
+                with st.spinner("Grading..."):
+                    evaluation_prompt = f"""
+                    Evaluate this answer strictly based on the material:
 
-            Question: {st.session_state.generated_question}
-            User Answer: {st.session_state.user_ans}
-            Study Material: {st.session_state.current_chunk}
+                    Question: {st.session_state.generated_question}
+                    User Answer: {st.session_state.user_ans}
+                    Study Material: {st.session_state.current_chunk}
 
-            Provide:
-            - Correctness (0-10)
-            - What is correct
-            - What is missing
-            - Correct answer
-            """
+                    Provide:
+                    - Correctness (0-10)
+                    - What is correct
+                    - What is missing
+                    - Correct answer
+                    """
 
-            evaluation = model.invoke(evaluation_prompt)
-            st.session_state.evaluation = evaluation.content
+                    evaluation = model.invoke(evaluation_prompt)
+                    st.session_state.evaluation = evaluation.content
 
     if st.session_state.evaluation:
-        st.write("## Evaluation:")
-        st.write(st.session_state.evaluation)
+        st.markdown("### 📊 Evaluation Results")
+        with st.expander("View Detailed Feedback", expanded=True):
+            st.markdown(st.session_state.evaluation)
 
 # ------------------------------------------------------
-#                     MODE 2: PYQ (ABESIT)
+#                       MODE 2: PYQ (ABESIT)
 # ------------------------------------------------------
 
 if question_mode == "PYQ":
@@ -298,125 +372,129 @@ if question_mode == "PYQ":
     if "pyq_evaluation" not in st.session_state:
         st.session_state.pyq_evaluation = None
 
-    st.info("🎯 Focus: PYQ Question Bank")
+    st.info("🎯 Focus: PYQ Question Bank - Sourced from ABESIT Library")
 
-    # Inputs
-    col1, col2 = st.columns(2)
+    with st.container(border=True):
+        st.markdown("#### 🔍 Search Parameters")
+        # Inputs
+        col1, col2 = st.columns(2)
 
-    with col1:
-        course = st.selectbox(
-            "Select Course",
-            ["B.Tech", "MCA", "B.Pharm", "BBA", "BCA", "MBA"],
-            key="pyq_course"
-        )
-        year = st.text_input("Year (Optional)", placeholder="e.g. 2022", key="pyq_year")
+        with col1:
+            course = st.selectbox(
+                "Select Course",
+                ["B.Tech", "MCA", "B.Pharm", "BBA", "BCA", "MBA"],
+                key="pyq_course"
+            )
+            year = st.text_input("Year (Optional)", placeholder="e.g. 2022", key="pyq_year")
 
-    with col2:
-        subject = st.text_input(
-            "Subject Name or Code",
-            placeholder="e.g. KCS301 or Data Structures",
-            key="pyq_sub"
-        )
-        st.caption("Tip: Subject Codes (like KCS-301) work best.")
+        with col2:
+            subject = st.text_input(
+                "Subject Name or Code",
+                placeholder="e.g. KCS301 or Data Structures",
+                key="pyq_sub"
+            )
+            st.caption("💡 Tip: Subject Codes (like KCS-301) work best.")
 
-    # Search Button
-    if st.button("Search"):
+        # Search Button
+        if st.button("🔍 Search Papers"):
 
-        if not subject:
-            st.error("Please enter a Subject Name or Code.")
-        else:
-            with st.spinner(f"Scanning for {course} {subject}..."):
+            if not subject:
+                st.error("Please enter a Subject Name or Code.")
+            else:
+                with st.status(f"Scanning for {course} {subject}...", expanded=True):
 
-                search_query = (
-                    f'site:abesit.in "{course}" "{subject}" {year} filetype:pdf'
-                )
-
-                try:
-                    google_json = google_search(search_query, num_results=5)
-
-                    urls = []
-                    for item in google_json.get("items", []):
-                        if "link" in item:
-                            urls.append(item["link"])
-
-                    if not urls:
-                        st.warning(f"No PDFs found on ABESIT for '{subject}'.")
-                        st.info("Try searching by the Subject Code (e.g., 'KCS-301').")
-                        st.stop()
-
-                    all_text = ""
-                    headers = {"User-Agent": "Mozilla/5.0"}
-
-                    files_found = 0
-
-                    for link in urls:
-                        try:
-                            if link.lower().endswith(".pdf"):
-                                r = requests.get(link, headers=headers, timeout=8)
-
-                                with open("temp_pyq.pdf", "wb") as f:
-                                    f.write(r.content)
-
-                                reader = PdfReader("temp_pyq.pdf")
-                                file_text = ""
-
-                                for page in reader.pages:
-                                    t = page.extract_text()
-                                    if t:
-                                        file_text += t + "\n"
-
-                                if file_text.strip():
-                                    all_text += f"\n--- SOURCE: {link} ---\n" + file_text
-                                    files_found += 1
-                        except:
-                            pass
-
-                    if not all_text.strip():
-                        st.error("Found files but couldn't extract text.")
-                        st.stop()
-
-                    extraction_prompt = f"""
-                    You are extracting questions from the ABESIT Library Question Bank.
-
-                    Target Subject: {subject}
-                    Target Course: {course}
-
-                    Task:
-                    1. Read the text below.
-                    2. Extract ONLY the exam questions.
-                    3. Do NOT generate fake questions.
-                    4. If unrelated, return [].
-
-                    Output: Python list of strings: ["Question 1", "Question 2", ...]
-
-                    Text:
-                    {all_text[:30000]}
-                    """
-
-                    response = model.invoke(extraction_prompt)
-                    clean_text = re.sub(
-                        r"```[a-zA-Z]*", "", response.content
-                    ).replace("```", "").strip()
+                    search_query = (
+                        f'site:abesit.in "{course}" "{subject}" {year} filetype:pdf'
+                    )
 
                     try:
-                        question_array = ast.literal_eval(clean_text)
-                    except:
-                        try:
-                            question_array = json.loads(clean_text)
-                        except:
-                            st.error("Error parsing extracted questions.")
+                        google_json = google_search(search_query, num_results=5)
+
+                        urls = []
+                        for item in google_json.get("items", []):
+                            if "link" in item:
+                                urls.append(item["link"])
+
+                        if not urls:
+                            st.warning(f"No PDFs found on ABESIT for '{subject}'.")
+                            st.info("Try searching by the Subject Code (e.g., 'KCS-301').")
                             st.stop()
 
-                    if isinstance(question_array, list) and len(question_array) > 0:
-                        st.session_state.pyq_list = question_array
-                        st.session_state.pyq_index = 0
-                        st.success(f"Found {len(question_array)} questions from {files_found} ABESIT paper(s).")
-                        st.rerun()
-                    else:
-                        st.warning("No clear questions found.")
+                        all_text = ""
+                        headers = {"User-Agent": "Mozilla/5.0"}
 
-                except Exception as e:
-                    st.error(f"Error: {e}")
+                        files_found = 0
+
+                        for link in urls:
+                            st.write(f"Reading: {link}...")
+                            try:
+                                if link.lower().endswith(".pdf"):
+                                    r = requests.get(link, headers=headers, timeout=8)
+
+                                    with open("temp_pyq.pdf", "wb") as f:
+                                        f.write(r.content)
+
+                                    reader = PdfReader("temp_pyq.pdf")
+                                    file_text = ""
+
+                                    for page in reader.pages:
+                                        t = page.extract_text()
+                                        if t:
+                                            file_text += t + "\n"
+
+                                    if file_text.strip():
+                                        all_text += f"\n--- SOURCE: {link} ---\n" + file_text
+                                        files_found += 1
+                            except:
+                                pass
+
+                        if not all_text.strip():
+                            st.error("Found files but couldn't extract text.")
+                            st.stop()
+
+                        st.write("Extracting exam questions using AI...")
+                        extraction_prompt = f"""
+                        You are extracting questions from the ABESIT Library Question Bank.
+
+                        Target Subject: {subject}
+                        Target Course: {course}
+
+                        Task:
+                        1. Read the text below.
+                        2. Extract ONLY the exam questions.
+                        3. Do NOT generate fake questions.
+                        4. If unrelated, return [].
+
+                        Output: Python list of strings: ["Question 1", "Question 2", ...]
+
+                        Text:
+                        {all_text[:30000]}
+                        """
+
+                        response = model.invoke(extraction_prompt)
+                        clean_text = re.sub(
+                            r"```[a-zA-Z]*", "", response.content
+                        ).replace("```", "").strip()
+
+                        try:
+                            question_array = ast.literal_eval(clean_text)
+                        except:
+                            try:
+                                question_array = json.loads(clean_text)
+                            except:
+                                st.error("Error parsing extracted questions.")
+                                st.stop()
+
+                        if isinstance(question_array, list) and len(question_array) > 0:
+                            st.session_state.pyq_list = question_array
+                            st.session_state.pyq_index = 0
+                            st.success(f"Found {len(question_array)} questions from {files_found} ABESIT paper(s).")
+                            st.rerun()
+                        else:
+                            st.warning("No clear questions found.")
+
+                    except Exception as e:
+                        st.error(f"Error: {e}")
 
     # Display Questions
     if st.session_state.pyq_list:
@@ -426,69 +504,77 @@ if question_mode == "PYQ":
         total = len(st.session_state.pyq_list)
 
         if idx < total:
+            
+            with st.container(border=True):
+                st.markdown(f"### 📝 Question {idx + 1} of {total}")
+                st.markdown(f"> **{st.session_state.pyq_list[idx]}**")
 
-            st.info(f"## Question {idx + 1} of {total}")
-            st.write(st.session_state.pyq_list[idx])
+                st.session_state.current_question = st.session_state.pyq_list[idx]
 
-            st.session_state.current_question = st.session_state.pyq_list[idx]
+                st.session_state.user_answer = st.text_area(
+                    "Your Answer:",
+                    value=st.session_state.user_answer,
+                    height=150
+                )
 
-            st.session_state.user_answer = st.text_area(
-                "Your Answer:",
-                value=st.session_state.user_answer
-            )
+                col_eval, col_next = st.columns([1, 1])
 
-            # Evaluate Answer
-            if st.button("Evaluate Answer"):
+                with col_eval:
+                    # Evaluate Answer
+                    if st.button("⚖️ Evaluate Answer"):
 
-                if not st.session_state.user_answer:
-                    st.warning("Please write an answer first.")
-                elif st.session_state.vector_store is None:
-                    st.error("Upload your notes PDF first so I can use them for evaluation.")
-                else:
-                    with st.spinner("Retrieving notes & grading..."):
+                        if not st.session_state.user_answer:
+                            st.warning("Please write an answer first.")
+                        elif st.session_state.vector_store is None:
+                            st.error("Upload your notes PDF first so I can use them for evaluation.")
+                        else:
+                            with st.spinner("Retrieving notes & grading..."):
 
-                        retrieved_chunks = st.session_state.vector_store.similarity_search(
-                            st.session_state.current_question, k=3
-                        )
+                                retrieved_chunks = st.session_state.vector_store.similarity_search(
+                                    st.session_state.current_question, k=3
+                                )
 
-                        context_chunk = "\n\n".join(
-                            [doc.page_content for doc in retrieved_chunks]
-                        )
+                                context_chunk = "\n\n".join(
+                                    [doc.page_content for doc in retrieved_chunks]
+                                )
 
-                        st.session_state.related_chunks = context_chunk
+                                st.session_state.related_chunks = context_chunk
 
-                        eval_prompt = f"""
-                        Evaluate this answer strictly based on the material.
-                        If the material is not enough, then only add missing info yourself.
+                                eval_prompt = f"""
+                                Evaluate this answer strictly based on the material.
+                                If the material is not enough, then only add missing info yourself.
 
-                        Question: {st.session_state.current_question}
-                        User Answer: {st.session_state.user_answer}
-                        Study Material: {st.session_state.related_chunks}
+                                Question: {st.session_state.current_question}
+                                User Answer: {st.session_state.user_answer}
+                                Study Material: {st.session_state.related_chunks}
 
-                        Provide:
-                        - Correctness (0-10)
-                        - What is correct
-                        - What is missing
-                        - Correct answer
-                        """
+                                Provide:
+                                - Correctness (0-10)
+                                - What is correct
+                                - What is missing
+                                - Correct answer
+                                """
 
-                        response = model.invoke(eval_prompt)
-                        st.session_state.pyq_evaluation = response.content
+                                response = model.invoke(eval_prompt)
+                                st.session_state.pyq_evaluation = response.content
+
+                with col_next:
+                    # NEXT QUESTION
+                    if st.button("➡️ NEXT QUESTION"):
+                        st.session_state.user_answer = ""
+                        st.session_state.pyq_evaluation = None
+                        st.session_state.related_chunks = ""
+                        st.session_state.pyq_index += 1
+                        st.rerun()
 
             if st.session_state.pyq_evaluation:
-                st.write("## Evaluation:")
-                st.write(st.session_state.pyq_evaluation)
-
-            # NEXT QUESTION
-            if st.button("NEXT QUESTION"):
-                st.session_state.user_answer = ""
-                st.session_state.pyq_evaluation = None
-                st.session_state.related_chunks = ""
-                st.session_state.pyq_index += 1
-                st.rerun()
+                st.markdown("### 📊 Evaluation:")
+                with st.container(border=True):
+                    st.markdown(st.session_state.pyq_evaluation)
 
         else:
-            st.warning("That was the last question!")
-            if st.button("Restart"):
+            st.balloons()
+            st.success("🎉 That was the last question!")
+            if st.button("🔄 Restart"):
                 st.session_state.pyq_index = 0
                 st.rerun()
