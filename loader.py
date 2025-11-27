@@ -24,7 +24,7 @@ from langchain_google_genai import (
 
 model = ChatGoogleGenerativeAI(model="gemini-2.5-pro")
 
-# Load secrets from Streamlit Cloud
+# Load secrets (Streamlit Cloud)
 GOOGLE_SEARCH_API_KEY = st.secrets["GOOGLE_SEARCH_API_KEY"]
 GOOGLE_SEARCH_CX = st.secrets["GOOGLE_SEARCH_CX"]
 GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
@@ -45,20 +45,17 @@ embeddings = GoogleGenerativeAIEmbeddings(
 
 class UniqueChunkSelector:
     def __init__(self, all_chunks):
-        self.chunk = all_chunks
-        self.total_count = len(all_chunks)
-        self.used_indices = set()
+        self.chunks = all_chunks
+        self.used = set()
 
-    def get_next_unique_chunk(self):
-        all_indices = set(range(self.total_count))
-        available = list(all_indices - self.used_indices)
-
+    def get(self):
+        available = list(set(range(len(self.chunks))) - self.used)
         if not available:
-            return "all chunks have been used"
+            return "All chunks used."
 
         idx = random.choice(available)
-        self.used_indices.add(idx)
-        return self.chunk[idx]
+        self.used.add(idx)
+        return self.chunks[idx]
 
 # ------------------------------------------------------
 #            GOOGLE SEARCH API FUNCTION
@@ -72,11 +69,10 @@ def google_search(query, num_results=5):
         "q": query,
         "num": num_results
     }
-
     try:
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        return response.json()
+        r = requests.get(url, params=params)
+        r.raise_for_status()
+        return r.json()
     except Exception as e:
         st.error(f"Google Search API Error: {e}")
         return {}
@@ -86,23 +82,22 @@ def google_search(query, num_results=5):
 # ------------------------------------------------------
 
 def chunk_documents(docs):
-    text_splitter = RecursiveCharacterTextSplitter(
+    splitter = RecursiveCharacterTextSplitter(
         chunk_size=800,
         chunk_overlap=150,
         length_function=len
     )
+    final = []
 
-    final_chunks = []
     for d in docs:
-        text = re.sub(r"\s+", " ", d["page_content"])
+        text = d["page_content"]
+        text = re.sub(r"\s+", " ", text)
         text = text.encode("ascii", "ignore").decode()
 
-        chunks = text_splitter.split_text(text)
-        for c in chunks:
+        for c in splitter.split_text(text):
             if c.strip():
-                final_chunks.append({"page_content": c})
-
-    return final_chunks
+                final.append({"page_content": c})
+    return final
 
 def to_document(chunks):
     return [Document(page_content=c["page_content"]) for c in chunks]
@@ -111,31 +106,23 @@ def to_document(chunks):
 #          PDF TEXT AUTO-DETECTOR (NO OCR)
 # ------------------------------------------------------
 
-def load_pdf_auto(path: str):
+def load_pdf_auto(path):
     reader = PdfReader(path)
-
     for page in reader.pages:
         if page.extract_text():
             docs = PyPDFLoader(path).load()
             return [{"page_content": d.page_content} for d in docs]
-
     return [{"page_content": "PDF has no readable text."}]
 
 # ------------------------------------------------------
-#        RAW CHROMA CLIENT (NO INTERNAL CRASHES)
+#        RAW CHROMA CLIENT (LATEST API — STABLE)
 # ------------------------------------------------------
 
-import chromadb
-from chromadb.config import Settings
+from chromadb import PersistentClient
 
 CHROMA_PATH = "chroma_db"
 
-client = chromadb.Client(
-    Settings(
-        chroma_db_impl="duckdb+parquet",
-        persist_directory=CHROMA_PATH,
-    )
-)
+client = PersistentClient(path=CHROMA_PATH)
 
 collection = client.get_or_create_collection(
     name="pdf_chunks",
@@ -161,18 +148,17 @@ def chroma_search(query, k=3):
 #                    STREAMLIT UI
 # ------------------------------------------------------
 
-st.title("Upload the PDF file")
+st.title("📘 Smart Study Companion")
 
-uploaded_file = st.file_uploader("Upload your material", type="pdf")
+uploaded_file = st.file_uploader("Upload your PDF", type="pdf")
 
 if uploaded_file:
-
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         tmp.write(uploaded_file.read())
         path = tmp.name
 
-    st.success("PDF Uploaded!")
-    st.write("Processing… ⏳")
+    st.success("PDF Uploaded")
+    st.info("Processing… ⏳")
 
     docs = load_pdf_auto(path)
     chunk = chunk_documents(docs)
@@ -189,7 +175,7 @@ if uploaded_file:
 st.subheader("Choose Question Type")
 
 mode = st.radio(
-    "Select how you want questions:",
+    "Select mode:",
     ("Generated From the Notes", "PYQ")
 )
 
@@ -202,63 +188,47 @@ if mode == "Generated From the Notes":
     if "generated_question" not in st.session_state:
         st.session_state.generated_question = None
 
-    if "current_chunk" not in st.session_state:
-        st.session_state.current_chunk = None
-
-    if "user_ans" not in st.session_state:
-        st.session_state.user_ans = ""
-
-    if "evaluation" not in st.session_state:
-        st.session_state.evaluation = None
+    if "chunk_text" not in st.session_state:
+        st.session_state.chunk_text = None
 
     if st.button("Generate Question"):
         selector = UniqueChunkSelector(chunk)
-        chunk_text = selector.get_next_unique_chunk()
-        st.session_state.current_chunk = chunk_text
+        chunk_text = selector.get()
+        st.session_state.chunk_text = chunk_text
 
         prompt = f"""
-        Create 1 exam-style question STRICTLY from the text below.
+        Generate ONE exam question strictly from the material below:
 
         TEXT:
         {chunk_text}
         """
 
-        response = model.invoke(prompt)
-        st.session_state.generated_question = response.content
-
-        st.session_state.user_ans = ""
-        st.session_state.evaluation = None
+        resp = model.invoke(prompt)
+        st.session_state.generated_question = resp.content
 
     if st.session_state.generated_question:
         st.write("### Question:")
         st.write(st.session_state.generated_question)
 
-        st.session_state.user_ans = st.text_area(
-            "Write your answer:",
-            value=st.session_state.user_ans
-        )
+        answer = st.text_area("Write your answer:")
 
-        if st.button("Submit Answer"):
-            evaluation_prompt = f"""
-            Evaluate the answer based ONLY on the material.
+        if st.button("Evaluate Answer"):
+            eval_prompt = f"""
+            Evaluate the answer strictly based on the study material.
 
             Question: {st.session_state.generated_question}
-            Answer: {st.session_state.user_ans}
-            Material: {st.session_state.current_chunk}
+            Answer: {answer}
+            Material: {st.session_state.chunk_text}
 
             Provide:
             - Score (0-10)
-            - What is correct
-            - What is missing
+            - Correct parts
+            - Missing parts
             - Improved answer
             """
 
-            ev = model.invoke(evaluation_prompt)
-            st.session_state.evaluation = ev.content
-
-    if st.session_state.evaluation:
-        st.write("### Evaluation:")
-        st.write(st.session_state.evaluation)
+            res = model.invoke(eval_prompt)
+            st.write(res.content)
 
 # ------------------------------------------------------
 #           MODE 2: PYQ EXTRACTION + EVALUATION
@@ -272,74 +242,68 @@ if mode == "PYQ":
     if "pyq_index" not in st.session_state:
         st.session_state.pyq_index = 0
 
-    st.info("📘 Searching ABESIT Question Bank")
+    st.info("🔎 Search ABESIT Question Bank")
 
     col1, col2 = st.columns(2)
 
     with col1:
         course = st.selectbox("Course", ["B.Tech", "MCA", "MBA", "BBA", "BCA"])
-        year = st.text_input("Year", placeholder="2022")
+        year = st.text_input("Year (optional)", placeholder="2022")
 
     with col2:
         subject = st.text_input("Subject Code/Name", placeholder="KCS301")
-        st.caption("TIP: Use subject codes like KCS-301")
+        st.caption("Use subject codes for better results.")
 
-    if st.button("Search ABESIT"):
+    if st.button("Search PYQs"):
 
         if not subject:
-            st.error("Enter subject!")
+            st.error("Enter a subject.")
         else:
             q = f'site:abesit.in "{course}" "{subject}" {year} filetype:pdf'
             data = google_search(q)
 
-            urls = [x["link"] for x in data.get("items", []) if "link" in x]
+            urls = [i["link"] for i in data.get("items", []) if "link" in i]
 
             if not urls:
-                st.error("No PDFs found!")
+                st.error("No PDFs found.")
                 st.stop()
 
-            all_text = ""
-            headers = {"User-Agent": "Mozilla/5.0"}
-
+            text = ""
             for link in urls:
                 if link.endswith(".pdf"):
                     try:
-                        r = requests.get(link, headers=headers, timeout=8)
-
+                        r = requests.get(link, timeout=8)
                         with open("temp.pdf", "wb") as f:
                             f.write(r.content)
 
                         reader = PdfReader("temp.pdf")
-                        t = ""
-
                         for p in reader.pages:
-                            text = p.extract_text()
-                            if text:
-                                t += text + "\n"
-
-                        if t.strip():
-                            all_text += t
+                            t = p.extract_text()
+                            if t:
+                                text += t + "\n"
                     except:
                         pass
 
             extract_prompt = f"""
-            Extract ONLY exam questions from text below.
+            Extract ONLY exam questions from the text:
 
             TEXT:
-            {all_text[:30000]}
+            {text[:30000]}
 
             Return Python list: ["Q1", "Q2"]
             """
 
-            resp = model.invoke(extract_prompt)
-            clean = re.sub(r"```[a-zA-Z]*", "", resp.content).replace("```", "")
+            r = model.invoke(extract_prompt)
+            clean = r.content.replace("```", "")
+            clean = re.sub(r"```[a-zA-Z]*", "", clean)
 
             try:
                 pyqs = ast.literal_eval(clean)
             except:
-                try: pyqs = json.loads(clean)
+                try:
+                    pyqs = json.loads(clean)
                 except:
-                    st.error("Parsing failed.")
+                    st.error("Failed to parse questions.")
                     st.stop()
 
             st.session_state.pyq_list = pyqs
@@ -348,31 +312,30 @@ if mode == "PYQ":
             st.rerun()
 
     if st.session_state.pyq_list:
-
         idx = st.session_state.pyq_index
-        total = len(st.session_state.pyq_list)
+        q = st.session_state.pyq_list[idx]
 
-        st.write(f"### Question {idx+1}/{total}")
-        st.write(st.session_state.pyq_list[idx])
+        st.write(f"### Question {idx+1}:")
+        st.write(q)
 
-        ans = st.text_area("Your Answer:")
+        answer = st.text_area("Your Answer:")
 
         if st.button("Evaluate"):
-            retrieved = chroma_search(st.session_state.pyq_list[idx], k=3)
-            text = "\n\n".join(retrieved)
+            retrieved = chroma_search(q, k=3)
+            context = "\n\n".join(retrieved)
 
             eval_prompt = f"""
-            Evaluate the answer.
+            Evaluate the answer using the notes.
 
-            Question: {st.session_state.pyq_list[idx]}
-            Answer: {ans}
-            Notes: {text}
+            Question: {q}
+            Answer: {answer}
+            Notes: {context}
 
-            Provide:
+            Give:
             - Score /10
-            - Correct parts
-            - Missing parts
-            - Improved answer
+            - Correct points
+            - Missing points
+            - Best possible answer
             """
 
             res = model.invoke(eval_prompt)
