@@ -20,84 +20,83 @@ from langchain_google_genai import (
 )
 
 # ------------------------------------------------------
-#   PAGE CONFIG & NEON CSS (VISUALS ONLY)
+#   PAGE CONFIG & CLEAN CSS (PROFESSIONAL LOOK)
 # ------------------------------------------------------
-st.set_page_config(page_title="Neon Exam AI", layout="wide", page_icon="⚡")
+st.set_page_config(page_title="Exam Assistant", layout="centered", page_icon="📚")
 
 st.markdown("""
 <style>
-    /* Main Background */
+    /* 1. FORCE LIGHT THEME BACKGROUND */
     .stApp {
-        background-color: #050505;
-        color: #e0e0e0;
+        background-color: #f8f9fa; /* Light Grey/White */
+        color: #212529;
     }
     
-    /* Neon Title */
-    h1 {
-        color: #fff;
-        text-shadow: 0 0 10px #00FFFF, 0 0 20px #00FFFF, 0 0 40px #00FFFF;
-        font-family: 'Courier New', monospace;
-        text-align: center;
-        margin-bottom: 30px;
-    }
-    
-    h2, h3 {
-        color: #00FFFF;
-        font-family: 'Courier New', sans-serif;
+    /* 2. FORCE TEXT TO BE DARK (Overrides System Dark Mode) */
+    h1, h2, h3, h4, h5, h6, p, li, span, div, label {
+        color: #212529 !important;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
 
-    /* Input Fields (Text Area, Inputs) */
+    /* 3. INPUT FIELDS */
     .stTextInput > div > div > input, .stTextArea > div > div > textarea {
-        background-color: #111;
-        color: #00FFFF;
-        border: 1px solid #333;
-        border-radius: 5px;
+        background-color: #ffffff !important;
+        color: #212529 !important;
+        border: 1px solid #ced4da;
+        border-radius: 8px;
     }
-    .stTextInput > div > div > input:focus, .stTextArea > div > div > textarea:focus {
-        border-color: #00FFFF;
-        box-shadow: 0 0 10px #00FFFF;
-    }
-
-    /* Buttons */
+    
+    /* 4. BUTTONS (Clean Blue) */
     .stButton > button {
-        background-color: transparent;
-        color: #00FFFF;
-        border: 2px solid #00FFFF;
-        border-radius: 5px;
-        transition: all 0.3s ease;
-        font-weight: bold;
-        width: 100%;
-        text-transform: uppercase;
-        letter-spacing: 2px;
+        background-color: #007bff;
+        color: white !important;
+        border: none;
+        border-radius: 8px;
+        padding: 0.6rem 1rem;
+        font-weight: 600;
+        transition: all 0.2s;
     }
     .stButton > button:hover {
-        background-color: #00FFFF;
-        color: #000;
-        box-shadow: 0 0 20px #00FFFF;
+        background-color: #0056b3;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
 
-    /* Selectbox & Radio */
-    .stSelectbox > div > div {
-        background-color: #111;
-        color: white;
-    }
-    
-    /* Cards/Containers */
+    /* 5. CARDS / CONTAINERS */
     div[data-testid="stVerticalBlock"] > div {
-        background-color: #0a0a0a;
-        border: 1px solid #222;
+        background-color: #ffffff;
+        border: 1px solid #e9ecef;
         padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
-    
-    /* Success/Info Messages */
-    .stSuccess, .stInfo {
-        background-color: #111 !important;
-        color: #00FFFF !important;
-        border-left: 5px solid #00FFFF !important;
+
+    /* 6. ALERTS & BOXES */
+    .stSuccess {
+        background-color: #d4edda !important;
+        color: #155724 !important;
+        border-left: 5px solid #28a745 !important;
     }
-    
+    .stInfo {
+        background-color: #cce5ff !important;
+        color: #004085 !important;
+        border-left: 5px solid #007bff !important;
+    }
+    .stWarning {
+        background-color: #fff3cd !important;
+        color: #856404 !important;
+        border-left: 5px solid #ffc107 !important;
+    }
+    .stError {
+        background-color: #f8d7da !important;
+        color: #721c24 !important;
+        border-left: 5px solid #dc3545 !important;
+    }
+
+    /* Hide standard headers/footers */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -134,7 +133,7 @@ class SimpleVectorStore:
         return [Document(page_content=t) for (_, t) in top]
 
 # ------------------------------------------------------
-#                  INITIAL SETUP
+#                   INITIAL SETUP
 # ------------------------------------------------------
 
 GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
@@ -159,7 +158,7 @@ if "chunks" not in st.session_state:
     st.session_state.chunks = []
 
 # ------------------------------------------------------
-#           GOOGLE SEARCH API FUNCTION
+#            GOOGLE SEARCH API FUNCTION
 # ------------------------------------------------------
 
 def google_search(query, num_results=5):
@@ -180,7 +179,7 @@ def google_search(query, num_results=5):
         return {}
 
 # ------------------------------------------------------
-#         UNIQUE CHUNK SELECTOR CLASS
+#          UNIQUE CHUNK SELECTOR CLASS
 # ------------------------------------------------------
 
 class UniqueChunkSelector:
@@ -201,7 +200,7 @@ class UniqueChunkSelector:
         return self.chunk[selected_index]
 
 # ------------------------------------------------------
-#              DOCUMENT CHUNKING
+#               DOCUMENT CHUNKING
 # ------------------------------------------------------
 
 def chunk_documents(docs):
@@ -223,7 +222,7 @@ def to_document(chunks):
     return [Document(page_content=c["page_content"]) for c in chunks]
 
 # ------------------------------------------------------
-#         PDF TEXT AUTO-DETECTOR (NO OCR)
+#          PDF TEXT AUTO-DETECTOR (NO OCR)
 # ------------------------------------------------------
 
 def load_pdf_auto(file_path: str):
@@ -246,11 +245,11 @@ def load_pdf_auto(file_path: str):
 #                    STREAMLIT UI
 # ------------------------------------------------------
 
-st.markdown("<h1>⚡ AI EXAM ASSISTANT ⚡</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>📚 Exam Assistant</h1>", unsafe_allow_html=True)
 
 with st.container():
     st.write("### 📂 Upload Material")
-    uploaded_file = st.file_uploader("Upload your material", type="pdf")
+    uploaded_file = st.file_uploader("Upload your material (PDF only)", type="pdf")
 
     if uploaded_file:
 
@@ -305,7 +304,7 @@ if question_mode == "Generated From the Notes":
 
     col1, col2 = st.columns([1, 2])
     with col1:
-        if st.button("✨ Generate Questions"):
+        if st.button("✨ Generate Question"):
             if not st.session_state.chunks:
                 st.warning("Please upload a PDF first.")
             else:
@@ -330,16 +329,16 @@ if question_mode == "Generated From the Notes":
 
     if st.session_state.generated_question:
         with st.container():
-            st.write("## ❓ Question:")
+            st.markdown("### ❓ Question:")
             st.info(st.session_state.generated_question)
 
             st.session_state.user_ans = st.text_area(
-                "TYPE THE ANSWER...",
+                "Write your answer here...",
                 value=st.session_state.user_ans,
                 height=150
             )
 
-            if st.button("🚀 Submit"):
+            if st.button("🚀 Submit Answer"):
                 evaluation_prompt = f"""
                 Evaluate this answer strictly based on the material:
 
@@ -358,11 +357,11 @@ if question_mode == "Generated From the Notes":
                 st.session_state.evaluation = evaluation.content
 
     if st.session_state.evaluation:
-        st.write("## 📊 Evaluation:")
-        st.markdown(f"<div style='border:1px solid #00FFFF; padding:10px; border-radius:5px;'>{st.session_state.evaluation}</div>", unsafe_allow_html=True)
+        st.markdown("### 📊 Evaluation:")
+        st.success(st.session_state.evaluation)
 
 # ------------------------------------------------------
-#                       MODE 2: PYQ (ABESIT)
+#                        MODE 2: PYQ (ABESIT)
 # ------------------------------------------------------
 
 if question_mode == "PYQ":
@@ -518,8 +517,8 @@ if question_mode == "PYQ":
         if idx < total:
             
             with st.container():
-                st.info(f"## Question {idx + 1} of {total}")
-                st.write(st.session_state.pyq_list[idx])
+                st.markdown(f"#### Question {idx + 1} of {total}")
+                st.info(st.session_state.pyq_list[idx])
 
                 st.session_state.current_question = st.session_state.pyq_list[idx]
 
@@ -579,8 +578,8 @@ if question_mode == "PYQ":
                         st.rerun()
 
             if st.session_state.pyq_evaluation:
-                st.write("## Evaluation:")
-                st.markdown(f"<div style='border:1px solid #00FFFF; padding:10px; border-radius:5px;'>{st.session_state.pyq_evaluation}</div>", unsafe_allow_html=True)
+                st.markdown("### Evaluation:")
+                st.success(st.session_state.pyq_evaluation)
 
         else:
             st.warning("That was the last question!")
