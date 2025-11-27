@@ -14,20 +14,16 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 
-st.set_page_config(
-    page_title="EduMind AI",
-    page_icon="📘",
-    layout="wide"
-)
-
-
-
-
-
 from langchain_google_genai import (
     GoogleGenerativeAIEmbeddings,
     ChatGoogleGenerativeAI
 )
+st.set_page_config(
+    page_title="EduMind AI",
+    page_icon="📘",   # Book icon
+    layout="wide"
+)
+
 
 # ------------------------------------------------------
 #   SIMPLE VECTOR STORE (RAM ONLY, NO EXTERNAL DB)
