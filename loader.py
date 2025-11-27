@@ -20,84 +20,106 @@ from langchain_google_genai import (
 )
 
 # ------------------------------------------------------
-#   PAGE CONFIG & NEON CSS (VISUALS ONLY)
+#   PAGE CONFIG & ZEN CSS (VISUALS ONLY)
 # ------------------------------------------------------
-st.set_page_config(page_title="Neon Exam AI", layout="wide", page_icon="⚡")
+st.set_page_config(
+    page_title="Study Focus", 
+    layout="wide", 
+    page_icon="🌿"
+)
 
 st.markdown("""
 <style>
-    /* Main Background */
+    /* 1. Main Background - Soft Off-White */
     .stApp {
-        background-color: #050505;
-        color: #e0e0e0;
+        background-color: #F9FAFB;
+        color: #4A5568;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    }
+
+    /* 2. Typography - Clean, Dark Grey, No Harsh Black */
+    h1, h2, h3 {
+        color: #2D3748;
+        font-weight: 300; /* Light/Thin font weight */
+        letter-spacing: -0.5px;
     }
     
-    /* Neon Title */
     h1 {
-        color: #fff;
-        text-shadow: 0 0 10px #00FFFF, 0 0 20px #00FFFF, 0 0 40px #00FFFF;
-        font-family: 'Courier New', monospace;
         text-align: center;
-        margin-bottom: 30px;
-    }
-    
-    h2, h3 {
-        color: #00FFFF;
-        font-family: 'Courier New', sans-serif;
+        margin-top: 2rem;
+        margin-bottom: 3rem;
+        font-size: 2.2rem;
     }
 
-    /* Input Fields (Text Area, Inputs) */
-    .stTextInput > div > div > input, .stTextArea > div > div > textarea {
-        background-color: #111;
-        color: #00FFFF;
-        border: 1px solid #333;
-        border-radius: 5px;
-    }
-    .stTextInput > div > div > input:focus, .stTextArea > div > div > textarea:focus {
-        border-color: #00FFFF;
-        box-shadow: 0 0 10px #00FFFF;
-    }
-
-    /* Buttons */
-    .stButton > button {
-        background-color: transparent;
-        color: #00FFFF;
-        border: 2px solid #00FFFF;
-        border-radius: 5px;
-        transition: all 0.3s ease;
-        font-weight: bold;
-        width: 100%;
-        text-transform: uppercase;
-        letter-spacing: 2px;
-    }
-    .stButton > button:hover {
-        background-color: #00FFFF;
-        color: #000;
-        box-shadow: 0 0 20px #00FFFF;
-    }
-
-    /* Selectbox & Radio */
-    .stSelectbox > div > div {
-        background-color: #111;
-        color: white;
-    }
-    
-    /* Cards/Containers */
+    /* 3. Containers/Cards - White with very subtle shadow */
     div[data-testid="stVerticalBlock"] > div {
-        background-color: #0a0a0a;
-        border: 1px solid #222;
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+        background-color: #FFFFFF;
+        border: 1px solid #F0F0F0;
+        border-radius: 12px;
+        padding: 2rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.02); /* Extremely subtle lift */
+    }
+
+    /* 4. Inputs - Minimal Borders */
+    .stTextInput > div > div > input, 
+    .stTextArea > div > div > textarea,
+    .stSelectbox > div > div {
+        background-color: #FFFFFF;
+        color: #4A5568;
+        border: 1px solid #E2E8F0;
+        border-radius: 8px;
     }
     
-    /* Success/Info Messages */
-    .stSuccess, .stInfo {
-        background-color: #111 !important;
-        color: #00FFFF !important;
-        border-left: 5px solid #00FFFF !important;
+    .stTextInput > div > div > input:focus, 
+    .stTextArea > div > div > textarea:focus {
+        border-color: #CBD5E0;
+        box-shadow: none; /* Removed harsh glow */
+    }
+
+    /* 5. Buttons - Soft, Muted, Rounded (Pill shape) */
+    .stButton > button {
+        background-color: #F7FAFC;
+        color: #4A5568;
+        border: 1px solid #E2E8F0;
+        border-radius: 20px;
+        padding: 0.5rem 1.5rem;
+        transition: all 0.3s ease;
+        font-weight: 500;
+        width: 100%;
     }
     
+    .stButton > button:hover {
+        background-color: #EDF2F7;
+        border-color: #CBD5E0;
+        color: #2D3748;
+    }
+    
+    /* Primary Action Button Style (Optional override for emphasis if needed, kept subtle) */
+    .stButton > button:active {
+        background-color: #E2E8F0;
+    }
+
+    /* 6. Alerts/Messages - Pastel tones */
+    .stSuccess {
+        background-color: #F0FFF4;
+        color: #2F855A;
+        border: none;
+    }
+    .stInfo {
+        background-color: #EBF8FF;
+        color: #2B6CB0;
+        border: none;
+    }
+    .stWarning {
+        background-color: #FFFFF0;
+        color: #C05621;
+        border: none;
+    }
+    
+    /* Hide default header/footer for cleaner look */
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -246,44 +268,45 @@ def load_pdf_auto(file_path: str):
 #                    STREAMLIT UI
 # ------------------------------------------------------
 
-st.markdown("<h1>⚡ AI EXAM ASSISTANT ⚡</h1>", unsafe_allow_html=True)
+st.markdown("<h1>Study & Focus</h1>", unsafe_allow_html=True)
 
+# Using a container with the new CSS for a clean card look
 with st.container():
-    st.write("### 📂 Upload Material")
-    uploaded_file = st.file_uploader("Upload your material", type="pdf")
+    st.markdown("### Upload Material")
+    uploaded_file = st.file_uploader("Select a PDF file", type="pdf", label_visibility="collapsed")
 
     if uploaded_file:
+        with st.spinner("Processing..."):
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                tmp.write(uploaded_file.read())
+                tmp_path = tmp.name
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            tmp.write(uploaded_file.read())
-            tmp_path = tmp.name
+            docs = load_pdf_auto(tmp_path)
+            chunks = chunk_documents(docs)
+            chunk_docs = to_document(chunks)
 
-        st.success("The file is uploaded successfully!")
-        st.write("Processing… please wait ⏳")
+            # create simple RAM vector store
+            vs = SimpleVectorStore(embeddings)
+            vs.add_documents(chunk_docs)
 
-        docs = load_pdf_auto(tmp_path)
-        chunks = chunk_documents(docs)
-        chunk_docs = to_document(chunks)
+            st.session_state.vector_store = vs
+            st.session_state.chunks = chunks
 
-        # create simple RAM vector store
-        vs = SimpleVectorStore(embeddings)
-        vs.add_documents(chunk_docs)
-
-        st.session_state.vector_store = vs
-        st.session_state.chunks = chunks
-
-        st.success("Embeddings generated and stored in memory for this session!")
+        st.success("Material ready.")
 
 # ------------------------------------------------------
 #                QUESTION GENERATION UI
 # ------------------------------------------------------
-st.divider()
-st.subheader("🎯 Choose Question Type")
+st.markdown("<br><br>", unsafe_allow_html=True) # Gentle spacing
 
-question_mode = st.radio(
-    "Select How You Want To Get Questions",
-    ("Generated From the Notes", "PYQ")
-)
+with st.container():
+    st.markdown("### Select Mode")
+    question_mode = st.radio(
+        "Mode",
+        ("Generated From the Notes", "PYQ"),
+        label_visibility="collapsed",
+        horizontal=True
+    )
 
 # ------------------------------------------------------
 #              MODE 1: GENERATED FROM NOTES
@@ -303,9 +326,11 @@ if question_mode == "Generated From the Notes":
     if "evaluation" not in st.session_state:
         st.session_state.evaluation = None
 
-    col1, col2 = st.columns([1, 2])
-    with col1:
-        if st.button("✨ Generate Questions"):
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    col_center, col_rest = st.columns([1, 2])
+    with col_center:
+        if st.button("Generate Question"):
             if not st.session_state.chunks:
                 st.warning("Please upload a PDF first.")
             else:
@@ -329,17 +354,20 @@ if question_mode == "Generated From the Notes":
                 st.session_state.evaluation = None
 
     if st.session_state.generated_question:
+        st.markdown("<br>", unsafe_allow_html=True)
         with st.container():
-            st.write("## ❓ Question:")
-            st.info(st.session_state.generated_question)
-
+            st.markdown(f"**Question:** {st.session_state.generated_question}")
+            
+            st.markdown("<br>", unsafe_allow_html=True)
             st.session_state.user_ans = st.text_area(
-                "TYPE THE ANSWER...",
+                "Your answer...",
                 value=st.session_state.user_ans,
-                height=150
+                height=150,
+                label_visibility="collapsed"
             )
 
-            if st.button("🚀 Submit"):
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Submit Answer"):
                 evaluation_prompt = f"""
                 Evaluate this answer strictly based on the material:
 
@@ -358,8 +386,10 @@ if question_mode == "Generated From the Notes":
                 st.session_state.evaluation = evaluation.content
 
     if st.session_state.evaluation:
-        st.write("## 📊 Evaluation:")
-        st.markdown(f"<div style='border:1px solid #00FFFF; padding:10px; border-radius:5px;'>{st.session_state.evaluation}</div>", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+        with st.container():
+            st.markdown("#### Evaluation")
+            st.write(st.session_state.evaluation)
 
 # ------------------------------------------------------
 #                       MODE 2: PYQ (ABESIT)
@@ -386,36 +416,35 @@ if question_mode == "PYQ":
     if "pyq_evaluation" not in st.session_state:
         st.session_state.pyq_evaluation = None
 
-    st.info("🎯 Focus: PYQ Question Bank")
-
+    st.markdown("<br>", unsafe_allow_html=True)
+    
     # Inputs
     with st.container():
+        st.markdown("#### Search Parameters")
         col1, col2 = st.columns(2)
 
         with col1:
             course = st.selectbox(
-                "Select Course",
+                "Course",
                 ["B.Tech", "MCA", "B.Pharm", "BBA", "BCA", "MBA"],
                 key="pyq_course"
             )
-            year = st.text_input("Year (Optional)", placeholder="e.g. 2022", key="pyq_year")
+            year = st.text_input("Year", placeholder="e.g. 2022", key="pyq_year")
 
         with col2:
             subject = st.text_input(
-                "Subject Name or Code",
-                placeholder="e.g. KCS301 or Data Structures",
+                "Subject Code/Name",
+                placeholder="e.g. KCS301",
                 key="pyq_sub"
             )
-            st.caption("Tip: Subject Codes (like KCS-301) work best.")
 
-        # Search Button
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔍 Search"):
+        if st.button("Search Papers"):
 
             if not subject:
                 st.error("Please enter a Subject Name or Code.")
             else:
-                with st.spinner(f"Scanning for {course} {subject}..."):
+                with st.spinner(f"Searching..."):
 
                     search_query = (
                         f'site:abesit.in "{course}" "{subject}" {year} filetype:pdf'
@@ -430,8 +459,7 @@ if question_mode == "PYQ":
                                 urls.append(item["link"])
 
                         if not urls:
-                            st.warning(f"No PDFs found on ABESIT for '{subject}'.")
-                            st.info("Try searching by the Subject Code (e.g., 'KCS-301').")
+                            st.warning(f"No PDFs found.")
                             st.stop()
 
                         all_text = ""
@@ -462,7 +490,7 @@ if question_mode == "PYQ":
                                 pass
 
                         if not all_text.strip():
-                            st.error("Found files but couldn't extract text.")
+                            st.error("No text extracted.")
                             st.stop()
 
                         extraction_prompt = f"""
@@ -494,16 +522,16 @@ if question_mode == "PYQ":
                             try:
                                 question_array = json.loads(clean_text)
                             except:
-                                st.error("Error parsing extracted questions.")
+                                st.error("Parsing error.")
                                 st.stop()
 
                         if isinstance(question_array, list) and len(question_array) > 0:
                             st.session_state.pyq_list = question_array
                             st.session_state.pyq_index = 0
-                            st.success(f"Found {len(question_array)} questions from {files_found} ABESIT paper(s).")
+                            st.success(f"Found {len(question_array)} questions.")
                             st.rerun()
                         else:
-                            st.warning("No clear questions found.")
+                            st.warning("No questions found.")
 
                     except Exception as e:
                         st.error(f"Error: {e}")
@@ -511,35 +539,38 @@ if question_mode == "PYQ":
     # Display Questions
     if st.session_state.pyq_list:
 
-        st.divider()
+        st.markdown("<br>", unsafe_allow_html=True)
         idx = st.session_state.pyq_index
         total = len(st.session_state.pyq_list)
 
         if idx < total:
             
             with st.container():
-                st.info(f"## Question {idx + 1} of {total}")
-                st.write(st.session_state.pyq_list[idx])
+                st.caption(f"Question {idx + 1} / {total}")
+                st.markdown(f"**{st.session_state.pyq_list[idx]}**")
 
                 st.session_state.current_question = st.session_state.pyq_list[idx]
 
+                st.markdown("<br>", unsafe_allow_html=True)
                 st.session_state.user_answer = st.text_area(
-                    "Your Answer:",
+                    "Your Answer",
                     value=st.session_state.user_answer,
-                    height=150
+                    height=150,
+                    label_visibility="collapsed"
                 )
 
+                st.markdown("<br>", unsafe_allow_html=True)
                 # Evaluate Answer
                 col_a, col_b = st.columns(2)
                 with col_a:
-                    if st.button("⚖️ Evaluate Answer"):
+                    if st.button("Evaluate"):
 
                         if not st.session_state.user_answer:
-                            st.warning("Please write an answer first.")
+                            st.warning("Enter an answer.")
                         elif st.session_state.vector_store is None:
-                            st.error("Upload your notes PDF first so I can use them for evaluation.")
+                            st.error("Upload notes first.")
                         else:
-                            with st.spinner("Retrieving notes & grading..."):
+                            with st.spinner("Grading..."):
 
                                 retrieved_chunks = st.session_state.vector_store.similarity_search(
                                     st.session_state.current_question, k=3
@@ -571,7 +602,7 @@ if question_mode == "PYQ":
 
                 with col_b:
                     # NEXT QUESTION
-                    if st.button("➡️ NEXT QUESTION"):
+                    if st.button("Next Question"):
                         st.session_state.user_answer = ""
                         st.session_state.pyq_evaluation = None
                         st.session_state.related_chunks = ""
@@ -579,11 +610,13 @@ if question_mode == "PYQ":
                         st.rerun()
 
             if st.session_state.pyq_evaluation:
-                st.write("## Evaluation:")
-                st.markdown(f"<div style='border:1px solid #00FFFF; padding:10px; border-radius:5px;'>{st.session_state.pyq_evaluation}</div>", unsafe_allow_html=True)
+                st.markdown("<br>", unsafe_allow_html=True)
+                with st.container():
+                    st.markdown("#### Feedback")
+                    st.write(st.session_state.pyq_evaluation)
 
         else:
-            st.warning("That was the last question!")
+            st.info("End of questions.")
             if st.button("Restart"):
                 st.session_state.pyq_index = 0
                 st.rerun()
