@@ -80,11 +80,12 @@ class UniqueChunkSelector:
 #                EMBEDDING MODEL
 # ------------------------------------------------------
 
+
 embeddings = GoogleGenerativeAIEmbeddings(
-    model="models/text-embedding-004",
+    model="text-embedding-004",
     google_api_key=GOOGLE_API_KEY,
-    transport="rest"
 )
+
 
 # ------------------------------------------------------
 #                  CHROMA VECTOR DB
