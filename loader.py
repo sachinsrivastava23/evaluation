@@ -5,68 +5,81 @@ import json
 import requests
 import re
 import ast
-import streamlit as st
 
+import streamlit as st
 from pypdf import PdfReader
+from bs4 import BeautifulSoup 
+
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 
-# VECTOR DB (QDRANT CLOUD)
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-from langchain_community.vectorstores import Qdrant
-from qdrant_client import QdrantClient
+# 🔥 REPLACED CHROMA WITH DOCARRAY
+from langchain_community.vectorstores import DocArrayInMemorySearch
+
+from langchain_google_genai import (
+    GoogleGenerativeAIEmbeddings,
+    ChatGoogleGenerativeAI
+)
 
 # ------------------------------------------------------
 #                  INITIAL SETUP
 # ------------------------------------------------------
 
-GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
+model = ChatGoogleGenerativeAI(model="gemini-2.5-pro")
+
+# Load secrets from Streamlit Cloud
 GOOGLE_SEARCH_API_KEY = st.secrets["GOOGLE_SEARCH_API_KEY"]
 GOOGLE_SEARCH_CX = st.secrets["GOOGLE_SEARCH_CX"]
-QDRANT_URL = st.secrets["QDRANT_URL"]
-QDRANT_API_KEY = st.secrets["QDRANT_API_KEY"]
-
-model = ChatGoogleGenerativeAI(model="gemini-2.5-pro", google_api_key=GOOGLE_API_KEY)
+GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 
 # ------------------------------------------------------
-#                GOOGLE SEARCH API
+#            GOOGLE SEARCH API FUNCTION
 # ------------------------------------------------------
 
 def google_search(query, num_results=5):
+    if not GOOGLE_SEARCH_API_KEY or not GOOGLE_SEARCH_CX:
+        raise ValueError("Missing API key or CX in Streamlit Secrets.")
+
     url = "https://www.googleapis.com/customsearch/v1"
     params = {
         "key": GOOGLE_SEARCH_API_KEY,
         "cx": GOOGLE_SEARCH_CX,
         "q": query,
-        "num": num_results,
+        "num": num_results
     }
+
     try:
         response = requests.get(url, params=params)
+        response.raise_for_status()
         return response.json()
-    except:
+    except Exception as e:
+        st.error(f"Google Search API Error: {e}")
         return {}
 
 # ------------------------------------------------------
-#             UNIQUE CHUNK SELECTOR
+#          UNIQUE CHUNK SELECTOR CLASS
 # ------------------------------------------------------
 
 class UniqueChunkSelector:
     def __init__(self, all_chunks):
         self.chunk = all_chunks
         self.total_count = len(all_chunks)
-        self.used = set()
+        self.used_indices = set()
 
-    def get_next(self):
-        remaining = list(set(range(self.total_count)) - self.used)
-        if not remaining:
-            return "all chunks used"
-        idx = random.choice(remaining)
-        self.used.add(idx)
-        return self.chunk[idx]
+    def get_next_unique_chunk(self):
+        all_indices = set(range(self.total_count))
+        available_indices = list(all_indices - self.used_indices)
+
+        if not available_indices:
+            return "all chunks have been used"
+
+        selected_index = random.choice(available_indices)
+        self.used_indices.add(selected_index)
+        return self.chunk[selected_index]
 
 # ------------------------------------------------------
-#           EMBEDDINGS MODEL
+#                EMBEDDING MODEL
 # ------------------------------------------------------
 
 embeddings = GoogleGenerativeAIEmbeddings(
@@ -76,261 +89,358 @@ embeddings = GoogleGenerativeAIEmbeddings(
 )
 
 # ------------------------------------------------------
-#     PDF TEXT EXTRACTOR (NO OCR)
+#        IN-MEMORY VECTOR STORE (NO FILE STORAGE)
 # ------------------------------------------------------
 
-def load_pdf_auto(file_path):
-    reader = PdfReader(file_path)
-    for page in reader.pages:
-        text = page.extract_text()
-        if text and text.strip():
-            docs = PyPDFLoader(file_path).load()
-            return [{"page_content": d.page_content} for d in docs]
-
-    return [{"page_content": "This PDF has no extractable text."}]
+if "vector_store" not in st.session_state:
+    st.session_state.vector_store = None
 
 # ------------------------------------------------------
-#       SPLIT TEXT INTO CHUNKS
+#              DOCUMENT CHUNKING
 # ------------------------------------------------------
 
 def chunk_documents(docs):
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000, chunk_overlap=200, length_function=len
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=200,
+        length_function=len
     )
-    all_chunks = []
 
+    final_chunk = []
     for d in docs:
-        parts = splitter.split_text(d["page_content"])
-        for p in parts:
-            all_chunks.append({"page_content": p})
+        chunks = text_splitter.split_text(d["page_content"])
+        for c in chunks:
+            final_chunk.append({"page_content": c})
 
-    return all_chunks
+    return final_chunk
 
-def to_documents(chunks):
+def to_document(chunks):
     return [Document(page_content=c["page_content"]) for c in chunks]
 
 # ------------------------------------------------------
-#             STREAMLIT UI
+#          PDF TEXT AUTO-DETECTOR (NO OCR)
 # ------------------------------------------------------
 
-st.title("📘 Smart Study Companion (Qdrant Version)")
+def load_pdf_auto(file_path: str):
+    reader = PdfReader(file_path)
+    has_text = False
 
-uploaded_file = st.file_uploader("Upload PDF Notes", type="pdf")
+    for page in reader.pages:
+        text = page.extract_text()
+        if text and text.strip():
+            has_text = True
+            break
+
+    if has_text:
+        docs = PyPDFLoader(file_path).load()
+        return [{"page_content": d.page_content} for d in docs]
+
+    return [{"page_content": "This PDF does not contain selectable text. Unsupported format."}]
+
+# ------------------------------------------------------
+#                    STREAMLIT UI
+# ------------------------------------------------------
+
+st.title("Upload the PDF file")
+
+uploaded_file = st.file_uploader("Upload your material", type="pdf")
 
 if uploaded_file:
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         tmp.write(uploaded_file.read())
-        pdf_path = tmp.name
+        tmp_path = tmp.name
 
-    st.success("PDF uploaded! Processing...")
+    st.success("The file is uploaded successfully!")
+    st.write("Processing… please wait ⏳")
 
-    docs = load_pdf_auto(pdf_path)
+    docs = load_pdf_auto(tmp_path)
     chunk = chunk_documents(docs)
-    chunk_docs = to_documents(chunk)
+    chunk_docs = to_document(chunk)
 
-    COLLECTION_NAME = "user_pdf_chunks"
-
-    # 🔥 Fixed Qdrant Cloud Upload
-    # Create Qdrant client first
-    qdrant_client = QdrantClient(
-        url=QDRANT_URL,
-        api_key=QDRANT_API_KEY,
-    )
-    
-    # Upload to Qdrant Cloud with proper client
-    vector_store = Qdrant.from_documents(
-        documents=chunk_docs,
-        embedding=embeddings,
-        collection_name=COLLECTION_NAME,
-        client=qdrant_client,
+    # 🔥 CREATE IN-MEMORY VECTOR STORE
+    st.session_state.vector_store = DocArrayInMemorySearch.from_documents(
+        chunk_docs,
+        embeddings
     )
 
-    st.success("Embeddings uploaded to Qdrant Cloud!")
+    st.success("Embeddings generated and stored in memory!")
 
 # ------------------------------------------------------
-#          QUESTION MODE SELECTOR
+#                QUESTION GENERATION UI
 # ------------------------------------------------------
 
 st.subheader("Choose Question Type")
-choice = st.radio("", ["Generated From Notes", "PYQ"])
+
+question_mode = st.radio(
+    "Select How You Want To Get Questions",
+    ("Generated From the Notes", "PYQ")
+)
 
 # ------------------------------------------------------
-#         MODE 1 — GENERATED FROM NOTES
+#             MODE 1: GENERATED FROM NOTES
 # ------------------------------------------------------
 
-if choice == "Generated From Notes":
+if question_mode == "Generated From the Notes":
 
     if "generated_question" not in st.session_state:
         st.session_state.generated_question = None
+
     if "current_chunk" not in st.session_state:
         st.session_state.current_chunk = None
-    if "user_answer" not in st.session_state:
-        st.session_state.user_answer = ""
+
+    if "user_ans" not in st.session_state:
+        st.session_state.user_ans = ""
+
     if "evaluation" not in st.session_state:
         st.session_state.evaluation = None
 
-    # Generate question
-    if st.button("Generate Question"):
+    if st.button("Generate Questions"):
         selector = UniqueChunkSelector(chunk)
-        chunk_text = selector.get_next()
+        chunk_text = selector.get_next_unique_chunk()
         st.session_state.current_chunk = chunk_text
 
         prompt = f"""
-        Generate one exam-style question from the following material:
+        Generate 1 exam-oriented question strictly from this material.
+        No extra topics. No MCQs. No references.
 
+        Study Material:
         {chunk_text}
         """
 
-        out = model.invoke(prompt)
-        st.session_state.generated_question = out.content
+        output = model.invoke(prompt)
+        st.session_state.generated_question = output.content
 
-    # Show question
+        st.session_state.user_ans = ""
+        st.session_state.evaluation = None
+
     if st.session_state.generated_question:
-        st.write("### Question:")
+        st.write("## Question:")
         st.write(st.session_state.generated_question)
 
-        st.session_state.user_answer = st.text_area(
-            "Your Answer:", value=st.session_state.user_answer
+        st.session_state.user_ans = st.text_area(
+            "TYPE THE ANSWER...",
+            value=st.session_state.user_ans
         )
 
-        if st.button("Evaluate Answer"):
-            eval_prompt = f"""
-            Evaluate the answer strictly from the material.
+        if st.button("Submit"):
+            evaluation_prompt = f"""
+            Evaluate this answer strictly based on the material:
 
             Question: {st.session_state.generated_question}
-            User Answer: {st.session_state.user_answer}
+            User Answer: {st.session_state.user_ans}
             Study Material: {st.session_state.current_chunk}
 
-            Return:
-            - Score (0-10)
+            Provide:
+            - Correctness (0-10)
             - What is correct
             - What is missing
             - Correct answer
             """
 
-            result = model.invoke(eval_prompt)
-            st.session_state.evaluation = result.content
+            evaluation = model.invoke(evaluation_prompt)
+            st.session_state.evaluation = evaluation.content
 
     if st.session_state.evaluation:
-        st.write("### Evaluation:")
+        st.write("## Evaluation:")
         st.write(st.session_state.evaluation)
 
 # ------------------------------------------------------
-#                MODE 2 — PYQ SEARCH
+#                     MODE 2: PYQ
 # ------------------------------------------------------
 
-if choice == "PYQ":
+if question_mode == "PYQ":
 
     if "pyq_list" not in st.session_state:
         st.session_state.pyq_list = []
+
     if "pyq_index" not in st.session_state:
         st.session_state.pyq_index = 0
+
+    if "current_question" not in st.session_state:
+        st.session_state.current_question = ""
+
+    if "user_answer" not in st.session_state:
+        st.session_state.user_answer = ""
+
+    if "related_chunks" not in st.session_state:
+        st.session_state.related_chunks = ""
+
+    if "evaluation" not in st.session_state:
+        st.session_state.evaluation = None
+
+    st.info("🎯 Focus: ABESIT Library Question Bank")
 
     col1, col2 = st.columns(2)
 
     with col1:
-        course = st.selectbox("Course", ["B.Tech", "MCA", "BCA", "MBA", "BBA"])
-        year = st.text_input("Year (optional)")
+        course = st.selectbox(
+            "Select Course",
+            ["B.Tech", "MCA", "B.Pharm", "BBA", "BCA", "MBA"],
+            key="pyq_course"
+        )
+        year = st.text_input("Year (Optional)", placeholder="e.g. 2022", key="pyq_year")
 
     with col2:
-        subject = st.text_input("Subject / Code")
-        st.caption("Tip: Use subject code like KCS301")
+        subject = st.text_input(
+            "Subject Name or Code",
+            placeholder="e.g. KCS301 or Data Structures",
+            key="pyq_sub"
+        )
+        st.caption("Tip: Subject Codes (like KCS-301) work best on ABESIT.")
 
-    if st.button("Search PYQ"):
+    if st.button("Search ABESIT Library"):
+
         if not subject:
-            st.error("Enter subject")
-            st.stop()
+            st.error("Please enter a Subject Name or Code.")
+        else:
+            with st.spinner(f"Scanning abesit.in for {course} {subject}..."):
 
-        query = f'site:abesit.in "{course}" "{subject}" {year} filetype:pdf"'
-        data = google_search(query)
+                search_query = (
+                    f'site:abesit.in "{course}" "{subject}" {year} filetype:pdf'
+                )
 
-        urls = [i["link"] for i in data.get("items", []) if "link" in i]
+                try:
+                    google_json = google_search(search_query, num_results=5)
 
-        if not urls:
-            st.error("No PYQs found.")
-            st.stop()
+                    urls = []
+                    for item in google_json.get("items", []):
+                        if "link" in item:
+                            urls.append(item["link"])
 
-        all_text = ""
-        for url in urls:
-            try:
-                if url.endswith(".pdf"):
-                    r = requests.get(url)
-                    with open("temp.pdf", "wb") as f:
-                        f.write(r.content)
+                    if not urls:
+                        st.warning(f"No PDFs found on ABESIT for '{subject}'.")
+                        st.stop()
 
-                    reader = PdfReader("temp.pdf")
-                    for pg in reader.pages:
-                        t = pg.extract_text()
-                        if t:
-                            all_text += t + "\n"
-            except:
-                pass
+                    all_text = ""
+                    headers = {"User-Agent": "Mozilla/5.0"}
 
-        extract_prompt = f"""
-        Extract ONLY exam questions from this text.
-        Output as a Python list of strings.
+                    files_found = 0
 
-        {all_text[:30000]}
-        """
+                    for link in urls:
+                        try:
+                            if link.lower().endswith(".pdf"):
+                                r = requests.get(link, headers=headers, timeout=8)
 
-        res = model.invoke(extract_prompt).content
-        clean = re.sub(r"```.*?```", "", res, flags=re.DOTALL).strip()
+                                with open("temp.pdf", "wb") as f:
+                                    f.write(r.content)
 
-        try:
-            pyqs = ast.literal_eval(clean)
-        except:
-            pyqs = []
+                                reader = PdfReader("temp.pdf")
+                                file_text = ""
 
-        st.session_state.pyq_list = pyqs
-        st.session_state.pyq_index = 0
+                                for page in reader.pages:
+                                    t = page.extract_text()
+                                    if t:
+                                        file_text += t + "\n"
 
-        st.success(f"Found {len(pyqs)} questions!")
+                                if file_text.strip():
+                                    all_text += f"\n--- SOURCE: {link} ---\n" + file_text
+                                    files_found += 1
+                        except:
+                            pass
+
+                    extraction_prompt = f"""
+                    You are extracting questions from the ABESIT Library Question Bank.
+
+                    Target Subject: {subject}
+                    Target Course: {course}
+
+                    Task:
+                    1. Read the text below.
+                    2. Extract ONLY the exam questions.
+                    3. Do NOT generate fake questions.
+                    4. If unrelated, return [].
+
+                    Output: Python list of strings.
+
+                    Text:
+                    {all_text[:30000]}
+                    """
+
+                    response = model.invoke(evaluation_prompt)
+                    clean_text = re.sub(r"```[a-zA-Z]*", "", response.content).replace("```", "").strip()
+
+                    try:
+                        question_array = ast.literal_eval(clean_text)
+                    except:
+                        try:
+                            question_array = json.loads(clean_text)
+                        except:
+                            st.error("Error parsing extracted questions.")
+                            st.stop()
+
+                    if isinstance(question_array, list) and len(question_array) > 0:
+                        st.session_state.pyq_list = question_array
+                        st.session_state.pyq_index = 0
+                        st.rerun()
+                    else:
+                        st.warning("No clear questions found.")
+
+                except Exception as e:
+                    st.error(f"Error: {e}")
 
     if st.session_state.pyq_list:
+
         idx = st.session_state.pyq_index
-        q = st.session_state.pyq_list[idx]
+        total = len(st.session_state.pyq_list)
 
-        st.write(f"### Question {idx+1}")
-        st.write(q)
+        if idx < total:
 
-        user_ans = st.text_area("Your Answer:")
+            st.info(f"## Question {idx + 1} of {total}")
+            st.write(st.session_state.pyq_list[idx])
 
-        if st.button("Evaluate PYQ"):
-            # Create Qdrant client for retrieval
-            qdrant_client = QdrantClient(
-                url=QDRANT_URL,
-                api_key=QDRANT_API_KEY,
-            )
-            
-            vector_store = Qdrant(
-                client=qdrant_client,
-                collection_name="user_pdf_chunks",
-                embeddings=embeddings,
+            st.session_state.current_question = st.session_state.pyq_list[idx]
+
+            st.session_state.user_answer = st.text_area(
+                "Your Answer:",
+                value=st.session_state.user_answer
             )
 
-            retrieved = vector_store.similarity_search(q, k=3)
-            context = "\n\n".join([d.page_content for d in retrieved])
+            if st.button("Evaluate Answer"):
 
-            prompt = f"""
-            Evaluate based on the following notes:
+                if not st.session_state.user_answer:
+                    st.warning("Please write an answer first.")
+                else:
 
-            Notes:
-            {context}
+                    retrieved_chunks = st.session_state.vector_store.similarity_search(
+                        st.session_state.current_question, k=3
+                    )
 
-            User Answer:
-            {user_ans}
+                    context_chunk = "\n\n".join(
+                        [doc.page_content for doc in retrieved_chunks]
+                    )
 
-            Provide:
-            - Correctness score 0–10
-            - What is correct
-            - What is missing
-            - Full correct answer
-            """
+                    st.session_state.related_chunks = context_chunk
 
-            result = model.invoke(prompt).content
-            st.write("### Evaluation:")
-            st.write(result)
+                    eval_prompt = f"""
+                    Evaluate this answer strictly based on the material.
 
-        if st.button("Next"):
-            st.session_state.pyq_index += 1
-            st.rerun()
+                    Question: {st.session_state.current_question}
+                    User Answer: {st.session_state.user_answer}
+                    Study Material: {st.session_state.related_chunks}
+
+                    Provide:
+                    - Correctness (0-10)
+                    - What is correct
+                    - What is missing
+                    - Correct answer
+                    """
+
+                    response = model.invoke(eval_prompt)
+                    st.session_state.evaluation = response.content
+
+            if st.session_state.evaluation:
+                st.write(st.session_state.evaluation)
+
+            if st.button("NEXT QUESTION"):
+                st.session_state.user_answer = ""
+                st.session_state.evaluation = None
+                st.session_state.related_chunks = ""
+                st.session_state.pyq_index += 1
+                st.rerun()
+
+        else:
+            st.warning("That was the last question!")
+            if st.button("Restart"):
+                st.session_state.pyq_index = 0
+                st.rerun()
