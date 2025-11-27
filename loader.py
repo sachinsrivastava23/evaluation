@@ -16,9 +16,16 @@ from langchain_community.document_loaders import PyPDFLoader
 
 st.set_page_config(
     page_title="EduMind AI",
-    page_icon="📘",   # Book icon
+    page_icon="📘",
     layout="wide"
 )
+
+st.markdown("""
+    <script>
+        document.title = "📘 EduMind AI";
+    </script>
+""", unsafe_allow_html=True)
+
 
 
 from langchain_google_genai import (
