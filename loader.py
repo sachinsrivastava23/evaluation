@@ -15,6 +15,7 @@ from langchain_community.document_loaders import PyPDFLoader
 # VECTOR DB (QDRANT CLOUD)
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from langchain_community.vectorstores import Qdrant
+from qdrant_client import QdrantClient
 
 # ------------------------------------------------------
 #                  INITIAL SETUP
@@ -129,13 +130,19 @@ if uploaded_file:
 
     COLLECTION_NAME = "user_pdf_chunks"
 
-    # 🔥 Upload to Qdrant Cloud
+    # 🔥 Fixed Qdrant Cloud Upload
+    # Create Qdrant client first
+    qdrant_client = QdrantClient(
+        url=QDRANT_URL,
+        api_key=QDRANT_API_KEY,
+    )
+    
+    # Upload to Qdrant Cloud with proper client
     vector_store = Qdrant.from_documents(
         documents=chunk_docs,
         embedding=embeddings,
-        url=QDRANT_URL,
-        api_key=QDRANT_API_KEY,
         collection_name=COLLECTION_NAME,
+        client=qdrant_client,
     )
 
     st.success("Embeddings uploaded to Qdrant Cloud!")
@@ -289,9 +296,14 @@ if choice == "PYQ":
         user_ans = st.text_area("Your Answer:")
 
         if st.button("Evaluate PYQ"):
-            vector_store = Qdrant(
+            # Create Qdrant client for retrieval
+            qdrant_client = QdrantClient(
                 url=QDRANT_URL,
                 api_key=QDRANT_API_KEY,
+            )
+            
+            vector_store = Qdrant(
+                client=qdrant_client,
                 collection_name="user_pdf_chunks",
                 embeddings=embeddings,
             )
