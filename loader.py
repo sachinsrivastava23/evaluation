@@ -298,7 +298,7 @@ if question_mode == "PYQ":
     if "pyq_evaluation" not in st.session_state:
         st.session_state.pyq_evaluation = None
 
-    st.info("🎯 Focus: ABESIT Library Question Bank")
+    st.info("🎯 Focus: PYQ Question Bank")
 
     # Inputs
     col1, col2 = st.columns(2)
@@ -320,7 +320,7 @@ if question_mode == "PYQ":
         st.caption("Tip: Subject Codes (like KCS-301) work best on ABESIT.")
 
     # Search Button
-    if st.button("Search ABESIT Library"):
+    if st.button("Search"):
 
         if not subject:
             st.error("Please enter a Subject Name or Code.")
