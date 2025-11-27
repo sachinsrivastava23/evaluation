@@ -20,11 +20,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.markdown("""
-    <script>
-        document.title = "📘 EduMind AI";
-    </script>
-""", unsafe_allow_html=True)
+
 
 
 
