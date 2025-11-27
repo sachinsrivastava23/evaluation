@@ -20,7 +20,7 @@ from langchain_google_genai import (
 )
 
 # ------------------------------------------------------
-#   UI CONFIGURATION & CSS (DARK MODE FIX)
+#   UI CONFIGURATION & CSS (THE NUCLEAR FIX)
 # ------------------------------------------------------
 
 st.set_page_config(page_title="Zen Study Companion", page_icon="🧘", layout="centered")
@@ -28,104 +28,97 @@ st.set_page_config(page_title="Zen Study Companion", page_icon="🧘", layout="c
 def inject_custom_css():
     st.markdown("""
     <style>
-        /* IMPORT GOOGLE FONTS */
+        /* IMPORT FONTS */
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&family=Merriweather:wght@300;700&display=swap');
 
-        /* 1. FORCE TEXT COLORS TO BE DARK (Fixes the White-on-White issue) */
-        h1, h2, h3, h4, h5, h6, p {
-            color: #2d3436 !important;
-        }
+        /* --- 1. THE NUCLEAR TEXT FIX --- */
+        /* This forces ALL text in the app to be dark gray, overriding Dark Mode white text */
         
-        /* Force specific Streamlit widget labels to be dark */
-        .stRadio label p, .stFileUploader label p, .stSelectbox label p, .stTextInput label p {
+        .stApp, .stApp > header {
+            background-color: #dfe6e9 !important; /* Force background color */
+        }
+
+        /* Target every possible text element to force it Dark */
+        h1, h2, h3, h4, h5, h6, p, span, div, label, li, a {
             color: #2d3436 !important;
         }
 
-        /* 2. MAIN BACKGROUND */
-        .stApp {
-            background-color: #dfe6e9; 
-            background-image: linear-gradient(315deg, #dfe6e9 0%, #f3f6f9 74%);
-            font-family: 'Poppins', sans-serif;
+        /* --- 2. EXCEPTIONS (Revert text to white for specific dark buttons) --- */
+        
+        /* The "Browse Files" button inside File Uploader */
+        button[data-testid="baseButton-secondary"] {
+            color: #2d3436 !important; /* Keep dark text on light button */
+            border-color: #2d3436 !important;
+        }
+
+        /* The Main Action Buttons (Purple) - Text must be white */
+        .stButton > button {
+            background-color: #6c5ce7 !important;
+            border: none !important;
+        }
+        .stButton > button p {
+            color: #ffffff !important; /* Force text white on purple button */
         }
         
-        /* HIDE STREAMLIT BRANDING */
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        header {visibility: hidden;}
+        /* --- 3. COMPONENT VISIBILITY FIXES --- */
+        
+        /* Fix the Radio Buttons (The bubbles themselves) */
+        div[role="radiogroup"] label div[data-testid="stMarkdownContainer"] p {
+            color: #2d3436 !important;
+        }
 
-        /* 3. CARD STYLE */
+        /* Fix the File Uploader "Drag and drop" text */
+        section[data-testid="stFileUploaderDropzone"] div, 
+        section[data-testid="stFileUploaderDropzone"] span, 
+        section[data-testid="stFileUploaderDropzone"] small {
+            color: #2d3436 !important;
+        }
+
+        /* --- 4. CARD STYLING --- */
         .css-card {
-            background-color: #FFFFFF;
+            background-color: #FFFFFF !important;
             padding: 2.5rem;
             border-radius: 15px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
             margin-bottom: 2rem;
             border-top: 6px solid #6c5ce7;
         }
 
-        /* BUTTON STYLING */
-        .stButton > button {
-            width: 100%;
-            background-color: #6c5ce7;
-            color: white !important; /* Force button text white */
-            border-radius: 8px;
-            border: none;
-            padding: 0.8rem 1rem;
-            font-weight: 500;
-            transition: all 0.3s ease;
-        }
-        .stButton > button:hover {
-            background-color: #a29bfe;
+        /* --- 5. INPUT FIELDS --- */
+        /* Force input backgrounds to be light so dark text is visible */
+        .stTextInput input, .stTextArea textarea, .stSelectbox div[data-baseweb="select"] {
+            background-color: #f1f2f6 !important;
             color: #2d3436 !important;
-            transform: translateY(-2px);
-        }
-
-        /* INPUT FIELDS - Force text inside inputs to be dark */
-        .stTextInput > div > div > input {
-            color: #2f3542 !important;
-            background-color: #f1f2f6;
+            border: 1px solid #ced6e0 !important;
         }
         
-        .stTextArea > div > div > textarea {
-            color: #2f3542 !important;
-            background-color: #fff;
-            border: 2px solid #dfe6e9;
-        }
-        
-        /* QUESTION BOX */
+        /* --- 6. COLORED BOXES --- */
         .question-box {
-            background-color: #fff200; 
-            background-image: linear-gradient(315deg, #fff200 0%, #fffa65 74%);
+            background-color: #fff200 !important;
             padding: 1.5rem;
             border-radius: 10px;
             margin: 1.5rem 0;
-            color: #2f3542 !important; /* Force text dark */
-            font-size: 1.15rem;
-            font-weight: 500;
-            font-family: 'Merriweather', serif;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             border-left: 5px solid #ffa502;
         }
+        .question-box div, .question-box p {
+             color: #2d3436 !important;
+        }
 
-        /* EVALUATION BOX */
         .eval-box {
-            background-color: #55efc4; 
-            background-image: linear-gradient(315deg, #55efc4 0%, #81ecec 74%);
+            background-color: #55efc4 !important;
             padding: 1.5rem;
             border-radius: 10px;
             margin-top: 1.5rem;
-            color: #006266 !important;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             border-left: 5px solid #00b894;
         }
-
-        /* SUCCESS MESSAGES */
-        .stSuccess {
-            background-color: #fab1a0;
-            color: #d63031 !important;
-            border-radius: 8px;
+        .eval-box div, .eval-box h3 {
+             color: #006266 !important;
         }
-        
+
+        /* HIDE DEFAULT HEADER */
+        header {visibility: hidden;}
+        footer {visibility: hidden;}
+
     </style>
     """, unsafe_allow_html=True)
 
@@ -375,7 +368,7 @@ if question_mode == "Generated From the Notes":
         st.markdown(f"""
         <div class="question-box">
             <div style="font-size:0.9rem; color:#d35400 !important; margin-bottom:5px;">QUESTION</div>
-            {st.session_state.generated_question}
+            <div style="color:#2d3436 !important;">{st.session_state.generated_question}</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -410,8 +403,8 @@ if question_mode == "Generated From the Notes":
     if st.session_state.evaluation:
         st.markdown(f"""
         <div class="eval-box">
-            <h3>📊 Evaluation Results</h3>
-            {st.session_state.evaluation.replace(chr(10), '<br>')}
+            <h3 style="color:#006266 !important;">📊 Evaluation Results</h3>
+            <div style="color:#006266 !important;">{st.session_state.evaluation.replace(chr(10), '<br>')}</div>
         </div>
         """, unsafe_allow_html=True)
     
@@ -581,7 +574,7 @@ if question_mode == "PYQ":
             st.markdown(f"""
             <div class="question-box">
                 <div style="font-size:0.9rem; color:#d35400 !important; margin-bottom:5px;">QUESTION</div>
-                {st.session_state.current_question}
+                <div style="color:#2d3436 !important;">{st.session_state.current_question}</div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -645,8 +638,8 @@ if question_mode == "PYQ":
             if st.session_state.pyq_evaluation:
                 st.markdown(f"""
                 <div class="eval-box">
-                    <h3>📊 Evaluation Results</h3>
-                    {st.session_state.pyq_evaluation.replace(chr(10), '<br>')}
+                    <h3 style="color:#006266 !important;">📊 Evaluation Results</h3>
+                    <div style="color:#006266 !important;">{st.session_state.pyq_evaluation.replace(chr(10), '<br>')}</div>
                 </div>
                 """, unsafe_allow_html=True)
 
