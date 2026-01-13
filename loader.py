@@ -73,9 +73,12 @@ GOOGLE_SEARCH_API_KEY = st.secrets["GOOGLE_SEARCH_API_KEY"]
 GOOGLE_SEARCH_CX = st.secrets["GOOGLE_SEARCH_CX"]
 
 model = ChatGoogleGenerativeAI(
-    model="gemini-2.5-pro",
-    google_api_key=GOOGLE_API_KEY
+    model="models/gemini-1.5-flash",
+    google_api_key=GOOGLE_API_KEY,
+    temperature=0.4,
+    max_output_tokens=512
 )
+
 
 embeddings = GoogleGenerativeAIEmbeddings(
     model="models/text-embedding-004",
