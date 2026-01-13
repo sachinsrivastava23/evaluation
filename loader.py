@@ -73,7 +73,7 @@ GOOGLE_SEARCH_API_KEY = st.secrets["GOOGLE_SEARCH_API_KEY"]
 GOOGLE_SEARCH_CX = st.secrets["GOOGLE_SEARCH_CX"]
 
 model = ChatGoogleGenerativeAI(
-    model="models/gemini-1.5-flash",
+    model="gemini-1.5-flash",
     google_api_key=GOOGLE_API_KEY,
     temperature=0.4,
     max_output_tokens=512
